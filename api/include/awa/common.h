@@ -410,6 +410,8 @@ AwaError AwaObjectDefinition_AddResourceDefinitionAsBoolean   (AwaObjectDefiniti
 AwaError AwaObjectDefinition_AddResourceDefinitionAsOpaque    (AwaObjectDefinition * objectDefinition, AwaResourceID resourceID, const char * resourceName, bool isMandatory, AwaResourceOperations operations, AwaOpaque defaultValue);
 AwaError AwaObjectDefinition_AddResourceDefinitionAsTime      (AwaObjectDefinition * objectDefinition, AwaResourceID resourceID, const char * resourceName, bool isMandatory, AwaResourceOperations operations, AwaTime defaultValue);
 AwaError AwaObjectDefinition_AddResourceDefinitionAsObjectLink(AwaObjectDefinition * objectDefinition, AwaResourceID resourceID, const char * resourceName, bool isMandatory, AwaResourceOperations operations, AwaObjectLink defaultValue);
+
+
 /** @} */
 
 /**
@@ -870,6 +872,12 @@ AwaError AwaChangeSet_GetValuesAsTimeArrayPointer      (const AwaChangeSet * cha
 AwaError AwaChangeSet_GetValuesAsOpaqueArrayPointer    (const AwaChangeSet * changeSet, const char * path, const AwaOpaqueArray ** valueArray);
 AwaError AwaChangeSet_GetValuesAsObjectLinkArrayPointer(const AwaChangeSet * changeSet, const char * path, const AwaObjectLinkArray ** valueArray);
 /** @} */
+
+
+typedef AwaResourceError (*AwaBlockResourceOperations)(AwaObjectID objectID, AwaObjectInstanceID objectInstanceID, AwaResourceID resourceID, AwaResourceOperations resourceOperation, void * data, uint16_t offset, uint16_t length);
+
+AwaError AwaObjectDefinition_AddBlockResourceDefinitionAsOpaque(AwaObjectDefinition * objectDefinition, AwaResourceID resourceID, const char * rosourceName, bool isMandatory, AwaBlockResourceOperations);
+
 
 
 /**************************************************************************************************

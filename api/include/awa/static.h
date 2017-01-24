@@ -204,6 +204,36 @@ typedef AwaResult (*AwaStaticClientHandler)(AwaStaticClient * client, AwaOperati
                                             AwaObjectID objectID, AwaObjectInstanceID objectInstanceID, AwaResourceID resourceID, AwaResourceInstanceID resourceInstanceID,
                                             void ** dataPointer, size_t * dataSize, bool * changed);
 
+/**
+ * @brief A user-specified callback handler for a LWM2M Operation on the specified /O/I/R/i path
+ *        to an LWM2M entity that will be called whenever a management server performs a LWM2M
+ *        operation on the specified client, allowing full control of the operation on the target
+ *        entity as well as the return code to be sent back to the server that performed the operation.
+ *
+ * @param[in] client A pointer to a valid Awa Static Client.
+ * @param[in] operation The requested operation to perform on the entity.
+ * @param[in] objectID Identifies the object for which the query is targeted.
+ * @param[in] objectInstanceID Identifies the object instance for which the query is targeted, or AWA_INVALID_ID
+ *            if the request is on an object.
+ * @param[in] resourceID Identifies the resource for which the query is targeted, or AWA_INVALID_ID
+ *            if the request is on an object instance or object.
+ * @param[in] resourceInstanceID Identifies the resource instance for which the query is targeted, or AWA_INVALID_ID
+ *            if the request is on a single-instance resource, object instance or object.
+ * @param[in,out] dataSize A pointer to the maximum amount of data in bytes for this block, set this to the actual amount in the block.
+ * @param[in,out] dataOffset A pointer to the offset in bytes of the requested data.
+ * @param[in,out] dataPointer A pointer to a void pointer containing data for the requested resource to be read or modified.
+ * @param[out] changed Set by the handler to indicate whether the resource's value has been changed by the handler
+ *                If set to true, a notification will be sent when possible to any observers
+ *                of the target object, object instance or resource.
+ * @return AwaResult_SuccessCreated on a successful create object instance or resource operation.
+ * @return AwaResult_SuccessDeleted on a successful delete object instance or resource operation.
+ * @return AwaResult_SuccessContent on a successful read operation.
+ * @return AwaResult_SuccessChanged on a successful write or execute operation.
+ * @return Various errors on failure.
+ */
+typedef AwaResult (*AwaStaticClientBlockHandler)(AwaStaticClient * client, AwaOperation operation,
+                                            AwaObjectID objectID, AwaObjectInstanceID objectInstanceID, AwaResourceID resourceID, AwaResourceInstanceID resourceInstanceID,
+                                            void ** dataPointer, size_t offset, size_t * dataSize, bool * changed);
 
 /************************************************************************************************************
  * Awa Static Client Initialisation and Teardown
@@ -508,6 +538,24 @@ AwaError AwaStaticClient_DefineResource(AwaStaticClient * client, AwaObjectID ob
  *
  */
 AwaError AwaStaticClient_SetResourceOperationHandler(AwaStaticClient * client, AwaObjectID objectID, AwaResourceID resourceID, AwaStaticClientHandler handler);
+
+/**
+ * @brief Set a user-specified callback handler that will be called whenever a LWM2M operation on the resource is performed.
+ *
+ *        The target resource must be defined with ::AwaStaticClient_DefineResource before this function is called.
+ *
+ * @note  This function overrides the effect of ::AwaStaticClient_SetResourceStorageWithPointer and ::AwaStaticClient_SetResourceStorageWithPointerArray.
+ *
+ * @param[in] client A pointer to a valid Awa Static Client.
+ * @param[in] objectID An ID that uniquely identifies the defined object that contains the defined resource.
+ * @param[in] resourceID An ID that uniquely identifies the defined resource within the object.
+ * @param[in] handler A user-specified callback handler.
+ * @return AwaError_Success on success.
+ * @return AwaError_DefinitionInvalid if @e objectID or @e resourceID is invalid or out of range.
+ * @return AwaError_StaticClientInvalid if @e client is NULL.
+ *
+ */
+AwaError AwaStaticClient_SetBlockResourceOperationHandler(AwaStaticClient * client, AwaObjectID objectID, AwaResourceID resourceID, AwaStaticClientBlockHandler handler);
 
 /**
  * @brief Set a resource's storage with a pointer to the resource's data,

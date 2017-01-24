@@ -120,6 +120,9 @@ typedef enum
     AwaResourceType_TimeArray,       /**< indicates a multiple-instance resource capable of holding a number of LWM2M Time values */
     AwaResourceType_ObjectLinkArray, /**< indicates a multiple-instance resource capable of holding a number of LWM2M ObjectLink values */
 
+    //Block transfer type
+    AwaResourceType_BlockQpaque,
+
     // sentinel, do not remove
     AwaResourceType_LAST,            /**< Reserved value */
 
