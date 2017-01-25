@@ -874,9 +874,9 @@ AwaError AwaChangeSet_GetValuesAsObjectLinkArrayPointer(const AwaChangeSet * cha
 /** @} */
 
 
-typedef AwaResourceError (*AwaBlockResourceOperations)(AwaObjectID objectID, AwaObjectInstanceID objectInstanceID, AwaResourceID resourceID, AwaResourceOperations resourceOperation, void * data, uint16_t offset, uint16_t length);
+typedef AwaResourceError (*AwaBlockResourceOperation)(AwaObjectID objectID, AwaObjectInstanceID objectInstanceID, AwaResourceID resourceID, AwaResourceOperations resourceOperation, void * data, uint16_t offset, uint16_t length);
 
-AwaError AwaObjectDefinition_AddBlockResourceDefinitionAsOpaque(AwaObjectDefinition * objectDefinition, AwaResourceID resourceID, const char * rosourceName, bool isMandatory, AwaBlockResourceOperations);
+AwaError AwaObjectDefinition_AddBlockResourceDefinitionAsOpaque(AwaObjectDefinition * objectDefinition, AwaResourceID resourceID, const char * rosourceName, bool isMandatory, AwaBlockResourceOperations blockResourceOperation);
 
 
 
