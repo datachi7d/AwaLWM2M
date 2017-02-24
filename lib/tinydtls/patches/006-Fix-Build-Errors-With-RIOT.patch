@@ -1,0 +1,593 @@
+diff --git a/ccm.c b/ccm.c
+index bd6f371a06b7..bdaf000d43c4 100644
+--- a/ccm.c
++++ b/ccm.c
+@@ -31,7 +31,7 @@
+ #define MASK_L(_L) ((1 << 8 * _L) - 1)
+ 
+ #define SET_COUNTER(A,L,cnt,C) {					\
+-    int i;								\
++    size_t i;								\
+     memset((A) + DTLS_CCM_BLOCKSIZE - (L), 0, (L));			\
+     (C) = (cnt) & MASK_L(L);						\
+     for (i = DTLS_CCM_BLOCKSIZE - 1; (C) && (i > (L)); --i, (C) >>= 8)	\
+@@ -45,7 +45,7 @@ block0(size_t M,       /* number of auth bytes */
+        size_t lm,      /* l(m) message length */
+        unsigned char nonce[DTLS_CCM_BLOCKSIZE],
+        unsigned char *result) {
+-  int i;
++  size_t i;
+ 
+   result[0] = CCM_FLAGS(la, M, L);
+ 
+diff --git a/crypto.c b/crypto.c
+index 3c4857a46219..0361d04c5c09 100644
+--- a/crypto.c
++++ b/crypto.c
+@@ -64,11 +64,11 @@ static void dtls_cipher_context_release(void)
+ }
+ 
+ #ifndef WITH_CONTIKI
+-void crypto_init()
++void crypto_init(void)
+ {
+ }
+ 
+-static dtls_handshake_parameters_t *dtls_handshake_malloc() {
++static dtls_handshake_parameters_t *dtls_handshake_malloc(void) {
+   return malloc(sizeof(dtls_handshake_parameters_t));
+ }
+ 
+@@ -76,7 +76,7 @@ static void dtls_handshake_dealloc(dtls_handshake_parameters_t *handshake) {
+   free(handshake);
+ }
+ 
+-static dtls_security_parameters_t *dtls_security_malloc() {
++static dtls_security_parameters_t *dtls_security_malloc(void) {
+   return malloc(sizeof(dtls_security_parameters_t));
+ }
+ 
+@@ -111,7 +111,7 @@ static void dtls_security_dealloc(dtls_security_parameters_t *security) {
+ }
+ #endif /* WITH_CONTIKI */
+ 
+-dtls_handshake_parameters_t *dtls_handshake_new()
++dtls_handshake_parameters_t *dtls_handshake_new(void)
+ {
+   dtls_handshake_parameters_t *handshake;
+ 
+@@ -143,7 +143,7 @@ void dtls_handshake_free(dtls_handshake_parameters_t *handshake)
+   dtls_handshake_dealloc(handshake);
+ }
+ 
+-dtls_security_parameters_t *dtls_security_new()
++dtls_security_parameters_t *dtls_security_new(void)
+ {
+   dtls_security_parameters_t *security;
+ 
+@@ -177,6 +177,7 @@ dtls_p_hash(dtls_hashfunc_t h,
+ 	    const unsigned char *random1, size_t random1len,
+ 	    const unsigned char *random2, size_t random2len,
+ 	    unsigned char *buf, size_t buflen) {
++  (void)h;
+   dtls_hmac_context_t *hmac_a, *hmac_p;
+ 
+   unsigned char A[DTLS_HMAC_DIGEST_SIZE];
+@@ -275,6 +276,7 @@ dtls_ccm_encrypt(aes128_ccm_t *ccm_ctx, const unsigned char *src, size_t srclen,
+ 		 unsigned char *buf, 
+ 		 unsigned char *nounce,
+ 		 const unsigned char *aad, size_t la) {
++  (void)src;
+   long int len;
+ 
+   assert(ccm_ctx);
+@@ -292,6 +294,7 @@ dtls_ccm_decrypt(aes128_ccm_t *ccm_ctx, const unsigned char *src,
+ 		 size_t srclen, unsigned char *buf,
+ 		 unsigned char *nounce,
+ 		 const unsigned char *aad, size_t la) {
++  (void)src;
+   long int len;
+ 
+   assert(ccm_ctx);
+diff --git a/dtls.c b/dtls.c
+index 5dbf7fd4f3b4..6ee0cd0c47aa 100644
+--- a/dtls.c
++++ b/dtls.c
+@@ -167,7 +167,7 @@ free_context(dtls_context_t *context) {
+ #else /* WITH_CONTIKI */
+ 
+ static inline dtls_context_t *
+-malloc_context() {
++malloc_context(void) {
+   return (dtls_context_t *)malloc(sizeof(dtls_context_t));
+ }
+ 
+@@ -178,7 +178,7 @@ free_context(dtls_context_t *context) {
+ #endif
+ 
+ void
+-dtls_init() {
++dtls_init(void) {
+   dtls_clock_init();
+   crypto_init();
+   netq_init();
+@@ -345,7 +345,7 @@ dtls_create_cookie(dtls_context_t *ctx,
+ 
+   len = dtls_hmac_finalize(&hmac_context, buf);
+ 
+-  if (len < *clen) {
++  if (len < (size_t)*clen) {
+     memset(cookie + len, 0, *clen - len);
+     *clen = len;
+   }
+@@ -475,7 +475,8 @@ static inline int is_tls_ecdhe_ecdsa_with_aes_128_ccm_8(dtls_cipher_t cipher)
+ #ifdef DTLS_ECC
+   return cipher == TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8;
+ #else
+-  return 0;
++  (void)cipher;
++ return 0;
+ #endif /* DTLS_ECC */
+ }
+ 
+@@ -485,6 +486,7 @@ static inline int is_tls_psk_with_aes_128_ccm_8(dtls_cipher_t cipher)
+ #ifdef DTLS_PSK
+   return cipher == TLS_PSK_WITH_AES_128_CCM_8;
+ #else
++  (void)cipher;
+   return 0;
+ #endif /* DTLS_PSK */
+ }
+@@ -495,6 +497,7 @@ static inline int is_psk_supported(dtls_context_t *ctx)
+ #ifdef DTLS_PSK
+   return ctx && ctx->h && ctx->h->get_psk_info;
+ #else
++  (void)ctx;
+   return 0;
+ #endif /* DTLS_PSK */
+ }
+@@ -506,6 +509,8 @@ static inline int is_ecdsa_supported(dtls_context_t *ctx, int is_client)
+   return ctx && ctx->h && ((!is_client && ctx->h->get_ecdsa_key) || 
+ 			   (is_client && ctx->h->verify_ecdsa_key));
+ #else
++  (void)ctx;
++  (void)is_client;
+   return 0;
+ #endif /* DTLS_ECC */
+ }
+@@ -517,6 +522,7 @@ static inline int is_ecdsa_client_auth_supported(dtls_context_t *ctx)
+ #ifdef DTLS_ECC
+   return ctx && ctx->h && ctx->h->get_ecdsa_key && ctx->h->verify_ecdsa_key;
+ #else
++  (void)ctx;
+   return 0;
+ #endif /* DTLS_ECC */
+ }
+@@ -557,6 +563,7 @@ static int
+ hs_attempt_with_existing_peer(uint8_t *msg, size_t msglen,
+     dtls_peer_t *peer)
+ {
++   (void)msglen;
+     if ((peer) && (peer->state == DTLS_STATE_CONNECTED)) {
+       if (msg[0] == DTLS_CT_HANDSHAKE) {
+         uint16_t msg_epoch = dtls_uint16_to_int(DTLS_RECORD_HEADER(msg)->epoch);
+@@ -600,40 +607,6 @@ static void dtls_debug_keyblock(dtls_security_parameters_t *config)
+ 		  dtls_kb_iv_size(config, peer->role));
+ }
+ 
+-/** returns the name of the goven handshake type number.
+-  * see IANA for a full list of types:
+-  * https://www.iana.org/assignments/tls-parameters/tls-parameters.xml#tls-parameters-7
+-  */
+-static char *dtls_handshake_type_to_name(int type)
+-{
+-  switch (type) {
+-  case DTLS_HT_HELLO_REQUEST:
+-    return "hello_request";
+-  case DTLS_HT_CLIENT_HELLO:
+-    return "client_hello";
+-  case DTLS_HT_SERVER_HELLO:
+-    return "server_hello";
+-  case DTLS_HT_HELLO_VERIFY_REQUEST:
+-    return "hello_verify_request";
+-  case DTLS_HT_CERTIFICATE:
+-    return "certificate";
+-  case DTLS_HT_SERVER_KEY_EXCHANGE:
+-    return "server_key_exchange";
+-  case DTLS_HT_CERTIFICATE_REQUEST:
+-    return "certificate_request";
+-  case DTLS_HT_SERVER_HELLO_DONE:
+-    return "server_hello_done";
+-  case DTLS_HT_CERTIFICATE_VERIFY:
+-    return "certificate_verify";
+-  case DTLS_HT_CLIENT_KEY_EXCHANGE:
+-    return "client_key_exchange";
+-  case DTLS_HT_FINISHED:
+-    return "finished";
+-  default:
+-    return "unknown";
+-  }
+-}
+-
+ /**
+  * Calculate the pre master secret and after that calculate the master-secret.
+  */
+@@ -643,6 +616,7 @@ calculate_key_block(dtls_context_t *ctx,
+ 		    dtls_peer_t *peer,
+ 		    session_t *session,
+ 		    dtls_peer_type role) {
++  (void)role;
+   unsigned char *pre_master_secret;
+   int pre_master_len = 0;
+   dtls_security_parameters_t *security = dtls_security_params_next(peer);
+@@ -942,7 +916,7 @@ static int
+ dtls_update_parameters(dtls_context_t *ctx, 
+ 		       dtls_peer_t *peer,
+ 		       uint8 *data, size_t data_length) {
+-  int i, j;
++  int i;
+   int ok;
+   dtls_handshake_parameters_t *config = peer->handshake_params;
+   dtls_security_parameters_t *security = dtls_security_params(peer);
+@@ -1016,6 +990,7 @@ dtls_update_parameters(dtls_context_t *ctx,
+ 
+   ok = 0;
+   while (i && !ok) {
++    size_t j;
+     for (j = 0; j < sizeof(compression_methods) / sizeof(uint8); ++j)
+       if (dtls_uint8_to_int(data) == compression_methods[j]) {
+ 	config->compression = compression_methods[j];
+@@ -1105,6 +1080,7 @@ check_client_keyexchange(dtls_context_t *ctx,
+     memcpy(handshake->keyx.psk.identity, data, id_length);
+   }
+ #endif /* DTLS_PSK */
++  (void)ctx;
+   return 0;
+ }
+ 
+@@ -1145,6 +1121,7 @@ clear_hs_hash(dtls_peer_t *peer) {
+ static int
+ check_finished(dtls_context_t *ctx, dtls_peer_t *peer,
+ 	       uint8 *data, size_t data_length) {
++  (void)ctx;
+   size_t digest_length, label_size;
+   const unsigned char *label;
+   unsigned char buf[DTLS_HMAC_MAX];
+@@ -1509,8 +1486,9 @@ dtls_send_multi(dtls_context_t *ctx, dtls_peer_t *peer,
+ 	dtls_debug("copied to sendqueue\n");
+ #endif /* WITH_CONTIKI */
+       }
+-    } else 
++    } else {
+       dtls_warn("retransmit buffer full\n");
++    }
+   }
+ 
+   /* FIXME: copy to peer's sendqueue (after fragmentation if
+@@ -1520,7 +1498,7 @@ dtls_send_multi(dtls_context_t *ctx, dtls_peer_t *peer,
+   /* Guess number of bytes application data actually sent:
+    * dtls_prepare_record() tells us in len the number of bytes to
+    * send, res will contain the bytes actually sent. */
+-  return res <= 0 ? res : overall_len - (len - res);
++  return res <= 0 ? res : (int)overall_len - ((int)len - res);
+ }
+ 
+ static inline int
+@@ -2582,8 +2560,9 @@ check_server_hello_verify_request(dtls_context_t *ctx,
+ 
+   res = dtls_send_client_hello(ctx, peer, hv->cookie, hv->cookie_length);
+ 
+-  if (res < 0)
++  if (res < 0) {
+     dtls_warn("cannot send ClientHello\n");
++  }
+ 
+   return res;
+ }
+@@ -2724,6 +2703,7 @@ check_server_key_exchange_psk(dtls_context_t *ctx,
+ 			      dtls_peer_t *peer,
+ 			      uint8 *data, size_t data_length)
+ {
++  (void)ctx;
+   dtls_handshake_parameters_t *config = peer->handshake_params;
+   uint16_t len;
+ 
+@@ -2763,6 +2743,7 @@ check_certificate_request(dtls_context_t *ctx,
+ 			  dtls_peer_t *peer,
+ 			  uint8 *data, size_t data_length)
+ {
++  (void)ctx;
+   unsigned int i;
+   int auth_alg;
+   int sig_alg;
+@@ -3508,6 +3489,7 @@ static int
+ handle_ccs(dtls_context_t *ctx, dtls_peer_t *peer, 
+ 	   uint8 *record_header, uint8 *data, size_t data_length)
+ {
++  (void)record_header;
+   int err;
+   dtls_handshake_parameters_t *handshake = peer->handshake_params;
+ 
+@@ -3546,6 +3528,7 @@ handle_ccs(dtls_context_t *ctx, dtls_peer_t *peer,
+ static int
+ handle_alert(dtls_context_t *ctx, dtls_peer_t *peer, 
+ 	     uint8 *record_header, uint8 *data, size_t data_length) {
++  (void)record_header;
+   int free_peer = 0;		/* indicates whether to free peer */
+ 
+   if (data_length < 2)
+@@ -3970,7 +3953,7 @@ dtls_retransmit(dtls_context_t *context, netq_t *node) {
+       
+       if (node->type == DTLS_CT_HANDSHAKE) {
+ 	dtls_handshake_header_t *hs_header = DTLS_HANDSHAKE_HEADER(data);
+-
++	(void)hs_header;
+ 	dtls_debug("** retransmit handshake packet of type: %s (%i)\n",
+ 	           dtls_handshake_type_to_name(hs_header->msg_type), hs_header->msg_type);
+       } else {
+diff --git a/dtls_debug.c b/dtls_debug.c
+index 8f41e36dd846..0a81de28c641 100644
+--- a/dtls_debug.c
++++ b/dtls_debug.c
+@@ -42,16 +42,16 @@
+ 
+ static int maxlog = DTLS_LOG_WARN;	/* default maximum log level */
+ 
+-const char *dtls_package_name() {
++const char *dtls_package_name(void) {
+   return PACKAGE_NAME;
+ }
+ 
+-const char *dtls_package_version() {
++const char *dtls_package_version(void) {
+   return PACKAGE_VERSION;
+ }
+ 
+ log_t 
+-dtls_get_log_level() {
++dtls_get_log_level(void) {
+   return maxlog;
+ }
+ 
+@@ -64,10 +64,12 @@ dtls_set_log_level(log_t level) {
+ #endif /* NDEBUG */
+ }
+ 
++#ifndef NDEBUG
+ /* this array has the same order as the type log_t */
+ static char *loglevels[] = {
+   "EMRG", "ALRT", "CRIT", "WARN", "NOTE", "INFO", "DEBG" 
+ };
++#endif
+ 
+ #ifdef HAVE_TIME_H
+ 
+@@ -203,7 +205,7 @@ dsrv_print_addr(const session_t *addr, char *buf, size_t len) {
+ 
+ #endif /* NDEBUG */
+ 
+-#ifndef WITH_CONTIKI
++#if !defined (WITH_CONTIKI) && defined (HAVE_VPRINTF)
+ void 
+ dsrv_log(log_t level, char *format, ...) {
+   static char timebuf[32];
+diff --git a/dtls_debug.h b/dtls_debug.h
+index 32a7b867462d..51347b3872b0 100644
+--- a/dtls_debug.h
++++ b/dtls_debug.h
+@@ -48,7 +48,7 @@ static inline void check_stack() {
+ #else /* WITH_CONTKI */
+ #define PRINTF(...)
+ 
+-static inline void check_stack() {
++static inline void check_stack(void) {
+ }
+ #endif
+ 
+@@ -58,13 +58,13 @@ typedef enum { DTLS_LOG_EMERG=0, DTLS_LOG_ALERT, DTLS_LOG_CRIT, DTLS_LOG_WARN,
+ } log_t;
+ 
+ /** Returns a zero-terminated string with the name of this library. */
+-const char *dtls_package_name();
++const char *dtls_package_name(void);
+ 
+ /** Returns a zero-terminated string with the library version. */
+-const char *dtls_package_version();
++const char *dtls_package_version(void);
+ 
+ /** Returns the current log level. */
+-log_t dtls_get_log_level();
++log_t dtls_get_log_level(void);
+ 
+ /** Sets the log level to the specified value. */
+ void dtls_set_log_level(log_t level);
+@@ -77,6 +77,7 @@ void dtls_set_log_level(log_t level);
+ void dsrv_log(log_t level, char *format, ...);
+ #else
+ #define dsrv_log(level, format, ...) PRINTF(format, ##__VA_ARGS__)
++#define dsrv_log_str(level, STR) dsrv_log(level, "%s\n", STR)
+ #endif
+ 
+ #ifndef NDEBUG
+@@ -93,29 +94,46 @@ void dtls_dsrv_log_addr(log_t level, const char *name, const session_t *addr);
+ #else /* NDEBUG */
+ 
+ static inline void hexdump(const unsigned char *packet, int length)
+-{}
++{
++    (void)packet;
++    (void)length;
++}
+ 
+ static inline void dump(unsigned char *buf, size_t len)
+-{}
++{
++    (void)buf;
++    (void)len;
++}
+ 
+ static inline void
+ dtls_dsrv_hexdump_log(log_t level, const char *name, const unsigned char *buf, size_t length, int extend)
+-{}
++{
++    (void)level;
++    (void)name;
++    (void)buf;
++    (void)length;
++    (void)extend;
++}
+ 
+ static inline void
+ dtls_dsrv_log_addr(log_t level, const char *name, const session_t *addr)
+-{}
++{
++    (void)level;
++    (void)name;
++    (void)addr;
++}
+ 
+ #endif /* NDEBUG */
+ 
+ /* A set of convenience macros for common log levels. */
+-#define dtls_emerg(...) dsrv_log(DTLS_LOG_EMERG, __VA_ARGS__)
+-#define dtls_alert(...) dsrv_log(DTLS_LOG_ALERT, __VA_ARGS__)
+-#define dtls_crit(...) dsrv_log(DTLS_LOG_CRIT, __VA_ARGS__)
+-#define dtls_warn(...) dsrv_log(DTLS_LOG_WARN, __VA_ARGS__)
+-#define dtls_notice(...) dsrv_log(DTLS_LOG_NOTICE, __VA_ARGS__)
+-#define dtls_info(...) dsrv_log(DTLS_LOG_INFO, __VA_ARGS__)
+-#define dtls_debug(...) dsrv_log(DTLS_LOG_DEBUG, __VA_ARGS__)
++#define GET_LOG(_1, _2, _3, _4, _5, _6, NAME, ...) NAME
++#define dtls_emerg(...) GET_LOG(__VA_ARGS__, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log_str, dsrv_log_str)(DTLS_LOG_EMERG, __VA_ARGS__)
++#define dtls_alert(...) GET_LOG(__VA_ARGS__, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log_str, dsrv_log_str)(DTLS_LOG_ALERT, __VA_ARGS__)
++#define dtls_crit(...) GET_LOG(__VA_ARGS__, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log_str, dsrv_log_str)(DTLS_LOG_CRIT, __VA_ARGS__)
++#define dtls_warn(...) GET_LOG(__VA_ARGS__, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log_str, dsrv_log_str)(DTLS_LOG_WARN, __VA_ARGS__)
++#define dtls_notice(...) GET_LOG(__VA_ARGS__, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log_str, dsrv_log_str)(DTLS_LOG_NOTICE, __VA_ARGS__)
++#define dtls_info(...) GET_LOG(__VA_ARGS__, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log_str, dsrv_log_str)(DTLS_LOG_INFO, __VA_ARGS__)
++#define dtls_debug(...) GET_LOG(__VA_ARGS__, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log, dsrv_log_str, dsrv_log_str)(DTLS_LOG_DEBUG, __VA_ARGS__)
+ #define dtls_debug_hexdump(name, buf, length) dtls_dsrv_hexdump_log(DTLS_LOG_DEBUG, name, buf, length, 1)
+ #define dtls_debug_dump(name, buf, length) dtls_dsrv_hexdump_log(DTLS_LOG_DEBUG, name, buf, length, 0)
+ 
+index 1cc2d7161d93..693e3b6904e0 100644
+--- a/hmac.c
++++ b/hmac.c
+@@ -35,7 +35,7 @@
+ #include <stdlib.h>
+ 
+ static inline dtls_hmac_context_t *
+-dtls_hmac_context_new() {
++dtls_hmac_context_new(void) {
+   return (dtls_hmac_context_t *)malloc(sizeof(dtls_hmac_context_t));
+ }
+ 
+diff --git a/netq.h b/netq.h
+index a5b71d30689a..7e8acab8fc5a 100644
+--- a/netq.h
++++ b/netq.h
+@@ -64,7 +64,7 @@ typedef struct netq_t {
+ } netq_t;
+ 
+ #ifndef WITH_CONTIKI
+-static inline void netq_init()
++static inline void netq_init(void)
+ { }
+ #else
+ void netq_init();
+diff --git a/peer.c b/peer.c
+index 40ff6057e705..76e3038f8f5b 100644
+--- a/peer.c
++++ b/peer.c
+@@ -20,12 +20,12 @@
+ #include "dtls_debug.h"
+ 
+ #ifndef WITH_CONTIKI
+-void peer_init()
++void peer_init(void)
+ {
+ }
+ 
+ static inline dtls_peer_t *
+-dtls_malloc_peer() {
++dtls_malloc_peer(void) {
+   return (dtls_peer_t *)malloc(sizeof(dtls_peer_t));
+ }
+ 
+diff --git a/sha2/sha2.c b/sha2/sha2.c
+index c42c9932cc56..36a9fdd2a826 100644
+--- a/sha2/sha2.c
++++ b/sha2/sha2.c
+@@ -252,7 +252,7 @@ void dtls_sha512_transform(dtls_sha512_ctx*, const sha2_word64*);
+ #ifdef WITH_SHA256
+ /*** SHA-XYZ INITIAL HASH VALUES AND CONSTANTS ************************/
+ /* Hash constant words K for SHA-256: */
+-const static sha2_word32 K256[64] = {
++static const sha2_word32 K256[64] = {
+ 	0x428a2f98UL, 0x71374491UL, 0xb5c0fbcfUL, 0xe9b5dba5UL,
+ 	0x3956c25bUL, 0x59f111f1UL, 0x923f82a4UL, 0xab1c5ed5UL,
+ 	0xd807aa98UL, 0x12835b01UL, 0x243185beUL, 0x550c7dc3UL,
+@@ -272,7 +272,7 @@ const static sha2_word32 K256[64] = {
+ };
+ 
+ /* Initial hash value H for SHA-256: */
+-const static sha2_word32 sha256_initial_hash_value[8] = {
++static const sha2_word32 sha256_initial_hash_value[8] = {
+ 	0x6a09e667UL,
+ 	0xbb67ae85UL,
+ 	0x3c6ef372UL,
+@@ -286,7 +286,7 @@ const static sha2_word32 sha256_initial_hash_value[8] = {
+ 
+ #if defined(WITH_SHA384) || defined(WITH_SHA512)
+ /* Hash constant words K for SHA-384 and SHA-512: */
+-const static sha2_word64 K512[80] = {
++static const sha2_word64 K512[80] = {
+ 	0x428a2f98d728ae22ULL, 0x7137449123ef65cdULL,
+ 	0xb5c0fbcfec4d3b2fULL, 0xe9b5dba58189dbbcULL,
+ 	0x3956c25bf348b538ULL, 0x59f111f1b605d019ULL,
+@@ -332,7 +332,7 @@ const static sha2_word64 K512[80] = {
+ 
+ #ifdef WITH_SHA384
+ /* Initial hash value H for SHA-384 */
+-const static sha2_word64 sha384_initial_hash_value[8] = {
++static const sha2_word64 sha384_initial_hash_value[8] = {
+ 	0xcbbb9d5dc1059ed8ULL,
+ 	0x629a292a367cd507ULL,
+ 	0x9159015a3070dd17ULL,
+@@ -346,7 +346,7 @@ const static sha2_word64 sha384_initial_hash_value[8] = {
+ 
+ #ifdef WITH_SHA512
+ /* Initial hash value H for SHA-512 */
+-const static sha2_word64 sha512_initial_hash_value[8] = {
++static const sha2_word64 sha512_initial_hash_value[8] = {
+ 	0x6a09e667f3bcc908ULL,
+ 	0xbb67ae8584caa73bULL,
+ 	0x3c6ef372fe94f82bULL,
+@@ -376,6 +376,7 @@ void dtls_sha256_init(dtls_sha256_ctx* context) {
+ 	context->bitcount = 0;
+ }
+ 
++
+ #ifdef SHA2_UNROLL_TRANSFORM
+ 
+ /* Unrolled SHA-256 round macros: */
+
+diff --git a/ecc/ecc.c b/ecc/ecc.c
+index c6c8497d5fc7..079ea7bcdf62 100644
+--- a/ecc/ecc.c
++++ b/ecc/ecc.c
+@@ -408,7 +408,7 @@ static void fieldInv(const uint32_t *A, const uint32_t *modulus, const uint32_t
+ 	}
+ }
+ 
+-void static ec_double(const uint32_t *px, const uint32_t *py, uint32_t *Dx, uint32_t *Dy){
++static void ec_double(const uint32_t *px, const uint32_t *py, uint32_t *Dx, uint32_t *Dy){
+ 	uint32_t tempA[8];
+ 	uint32_t tempB[8];
+ 	uint32_t tempC[8];
+@@ -444,7 +444,7 @@ void static ec_double(const uint32_t *px, const uint32_t *py, uint32_t *Dx, uint
+ 	fieldSub(tempC, py, ecc_prime_m, Dy); //Dy = lambda * (qx-dx) - px
+ }
+ 
+-void static ec_add(const uint32_t *px, const uint32_t *py, const uint32_t *qx, const uint32_t *qy, uint32_t *Sx, uint32_t *Sy){
++static void ec_add(const uint32_t *px, const uint32_t *py, const uint32_t *qx, const uint32_t *qy, uint32_t *Sx, uint32_t *Sy){
+ 	uint32_t tempA[8];
+ 	uint32_t tempB[8];
+ 	uint32_t tempC[8];
