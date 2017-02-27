@@ -12,6 +12,16 @@ enable_testing ()
 
 # TODO: set TARGET_CONFIGURE_OPTS from environment?
 
+# Options for target
+option (WITH_LINUX "Compile Awalwm2m for Linux" ON)
+
+if (NOT WITH_LINUX)
+  message(FATAL_ERROR "A target must be selected.")
+endif ()
+
+if (WITH_LINUX AND WITH_RIOT)
+  message(FATAL_ERROR "Only one target must be selected.")
+endif ()
 
 # Options for supported CoAP and DTLS libraries:
 option (WITH_LIBCOAP "Enable libcoap CoAP support)" OFF)
@@ -21,7 +31,6 @@ option (WITH_CYASSL "Enable CyaSSL DTLS support" OFF)
 option (WITH_TINYDTLS "Enable TinyDTLS DTLS support" OFF)
 option (WITH_MBEDTLS "Enable mbedTLS DTLS support" OFF)
 option (WITH_SYSTEMD "Install systemd service files" OFF)
-
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING
