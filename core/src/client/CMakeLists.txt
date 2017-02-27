@@ -34,7 +34,7 @@ set (awa_client_static_INCLUDE_DIRS
 
   ######################## TODO REMOVE ########################
   # TODO: extract components common to both Core and API
-  # FIXME: API_INCLUDE_DIR is not in the cmake cache at the time this is read  
+  # FIXME: API_INCLUDE_DIR is not in the cmake cache at the time this is read
   #${API_INCLUDE_DIR}
   #${API_SRC_DIR}
   ${CORE_SRC_DIR}/../../api/src
@@ -60,18 +60,22 @@ if (ENABLE_GCOV)
 endif ()
 
 # static library libawa_static.a
-add_library (awa_static STATIC  ${awa_client_static_SOURCES})
-target_include_directories (awa_static PUBLIC ${awa_client_static_INCLUDE_DIRS})
-set_property (TARGET awa_static PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_link_libraries (awa_static awa_common_static)
+if (BUILD_STATIC)
+  add_library (awa_static STATIC  ${awa_client_static_SOURCES})
+  target_include_directories (awa_static PUBLIC ${awa_client_static_INCLUDE_DIRS})
+  set_property (TARGET awa_static PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_link_libraries (awa_static awa_common_static libb64_static libhmac_static)
+endif ()
 
 # libawa_static.so
-add_library (awa_static_shared SHARED ${awa_client_static_SOURCES})
-set_target_properties (awa_static_shared PROPERTIES OUTPUT_NAME "awa_static")
-target_include_directories (awa_static_shared PUBLIC ${awa_client_static_INCLUDE_DIRS})
-set_property (TARGET awa_static_shared PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_link_libraries (awa_static_shared awa_common_static libb64_static libhmac_static)
+if (BUILD_SHARED)
+  add_library (awa_static_shared SHARED ${awa_client_static_SOURCES})
+  set_target_properties (awa_static_shared PROPERTIES OUTPUT_NAME "awa_static")
+  target_include_directories (awa_static_shared PUBLIC ${awa_client_static_INCLUDE_DIRS})
+  set_property (TARGET awa_static_shared PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_link_libraries (awa_static_shared awa_common_static libb64_static libhmac_static)
 
-install (TARGETS awa_static_shared
-    LIBRARY DESTINATION lib
-)
+  install (TARGETS awa_static_shared
+      LIBRARY DESTINATION lib
+  )
+endif()

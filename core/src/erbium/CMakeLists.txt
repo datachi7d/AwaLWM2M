@@ -43,11 +43,13 @@ remove_definitions (-DWITH_JSON)
 #add_definitions (-DUIP_CONF_BUFFER_SIZE=4096)
 
 # static library liberbiumstatic.a
-add_library (awa_erbiumstatic STATIC ${awa_erbium_SOURCES})
-set_target_properties (awa_erbiumstatic PROPERTIES OUTPUT_NAME "erbiumstatic")
-set_target_properties (awa_erbiumstatic PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_include_directories(awa_erbiumstatic PUBLIC ${awa_erbium_INCLUDE_DIRS})
-target_link_libraries (awa_erbiumstatic ${awa_erbium_LIBS})
+if (BUILD_STATIC)
+  add_library (awa_erbiumstatic STATIC ${awa_erbium_SOURCES})
+  set_target_properties (awa_erbiumstatic PROPERTIES OUTPUT_NAME "erbiumstatic")
+  set_target_properties (awa_erbiumstatic PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  target_include_directories(awa_erbiumstatic PUBLIC ${awa_erbium_INCLUDE_DIRS})
+  target_link_libraries (awa_erbiumstatic ${awa_erbium_LIBS})
+endif ()
 
 # TODO - needed? c.f. libawa_static)
 #if (ENABLE_GCOV)
@@ -55,12 +57,14 @@ target_link_libraries (awa_erbiumstatic ${awa_erbium_LIBS})
 #endif ()
 
 # liberbiumstatic.so
-add_library (awa_erbiumstatic_shared SHARED ${awa_erbium_SOURCES})
-set_target_properties (awa_erbiumstatic_shared PROPERTIES OUTPUT_NAME "erbiumstatic")
-set_target_properties (awa_erbiumstatic_shared PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_include_directories (awa_erbiumstatic_shared PUBLIC ${awa_erbium_INCLUDE_DIRS})
-target_link_libraries (awa_erbiumstatic_shared ${awa_erbium_LIBS})
+if (BUILD_SHARED)
+  add_library (awa_erbiumstatic_shared SHARED ${awa_erbium_SOURCES})
+  set_target_properties (awa_erbiumstatic_shared PROPERTIES OUTPUT_NAME "erbiumstatic")
+  set_target_properties (awa_erbiumstatic_shared PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  target_include_directories (awa_erbiumstatic_shared PUBLIC ${awa_erbium_INCLUDE_DIRS})
+  target_link_libraries (awa_erbiumstatic_shared ${awa_erbium_LIBS})
 
-install (TARGETS awa_erbiumstatic_shared
-    LIBRARY DESTINATION lib
-)
+  install (TARGETS awa_erbiumstatic_shared
+      LIBRARY DESTINATION lib
+  )
+endif ()

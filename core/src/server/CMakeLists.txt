@@ -55,9 +55,13 @@ target_include_directories (awa_server_object PRIVATE ${awa_server_INCLUDE_DIRS}
 set_property (TARGET awa_server_object PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # static library liblwm2mserver.a
-add_library (awa_server_static STATIC $<TARGET_OBJECTS:awa_server_object>)
-set_target_properties (awa_server_static PROPERTIES OUTPUT_NAME "lwm2mserver")
+if (BUILD_STATIC)
+  add_library (awa_server_static STATIC $<TARGET_OBJECTS:awa_server_object>)
+  set_target_properties (awa_server_static PROPERTIES OUTPUT_NAME "lwm2mserver")
+endif ()
 
 # shared library liblwm2mserver.so
-add_library (awa_server_shared SHARED $<TARGET_OBJECTS:awa_server_object>)
-set_target_properties (awa_server_shared PROPERTIES OUTPUT_NAME "lwm2mserver")
+if (BUILD_SHARED)
+  add_library (awa_server_shared SHARED $<TARGET_OBJECTS:awa_server_object>)
+  set_target_properties (awa_server_shared PROPERTIES OUTPUT_NAME "lwm2mserver")
+endif ()

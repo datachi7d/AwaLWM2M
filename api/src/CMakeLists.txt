@@ -33,11 +33,11 @@ set (Awa_SOURCES
   boolean_array.c
   objectlink_array.c
   map.c
-  
+
   session_common.c
   server_session.c
   client_session.c
-  
+
   operation_common.c
   server_operation.c
   set_write_common.c
@@ -100,15 +100,18 @@ target_include_directories (Awa_object PRIVATE ${LIB_XML_INCLUDE_DIR})
 target_include_directories (Awa_object PRIVATE ${LIB_B64_INCLUDE_DIR})
 set_property (TARGET Awa_object PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-add_library (Awa_static STATIC $<TARGET_OBJECTS:Awa_object>)
-set_target_properties (Awa_static PROPERTIES OUTPUT_NAME "awa")
-target_link_libraries (Awa_static libxml_static libb64_static libhmac_static)
+if (BUILD_STATIC)
+  add_library (Awa_static STATIC $<TARGET_OBJECTS:Awa_object>)
+  set_target_properties (Awa_static PROPERTIES OUTPUT_NAME "awa")
+  target_link_libraries (Awa_static libxml_static libb64_static libhmac_static)
+endif ()
 
-add_library (Awa_shared SHARED $<TARGET_OBJECTS:Awa_object>)
-set_target_properties (Awa_shared PROPERTIES OUTPUT_NAME "awa")
-target_link_libraries (Awa_shared libxml_static libb64_static libhmac_static)
-
-install (TARGETS Awa_shared
-   LIBRARY DESTINATION lib
-)
+if (BUILD_SHARED)
+  add_library (Awa_shared SHARED $<TARGET_OBJECTS:Awa_object>)
+  set_target_properties (Awa_shared PROPERTIES OUTPUT_NAME "awa")
+  target_link_libraries (Awa_shared libxml_static libb64_static libhmac_static)
+  install (TARGETS Awa_shared
+     LIBRARY DESTINATION lib
+  )
+endif ()
 

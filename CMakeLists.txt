@@ -23,6 +23,10 @@ if (WITH_LINUX AND WITH_RIOT)
   message(FATAL_ERROR "Only one target must be selected.")
 endif ()
 
+# Option for building
+option (BUILD_STATIC "Build static libraries" ON)
+option (BUILD_SHARED "Build shared libraries" ON)
+
 # Options for supported CoAP and DTLS libraries:
 option (WITH_LIBCOAP "Enable libcoap CoAP support)" OFF)
 option (WITH_ERBIUM "Enable Erbium CoAP support)" ON)

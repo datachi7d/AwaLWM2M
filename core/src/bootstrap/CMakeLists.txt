@@ -19,11 +19,11 @@ get_property (LIB_B64_INCLUDE_DIR TARGET libb64_static PROPERTY INCLUDE_DIRECTOR
 set (awa_bootstrap_INCLUDE_DIRS
   ${LIB_XML_INCLUDE_DIR}
   ${LIB_B64_INCLUDE_DIR}
-  
+
   ${CORE_SRC_DIR}
   ${CORE_SRC_DIR}/common
   ${CORE_SRC_DIR}/bootstrap
-  
+
   ######################## TODO REMOVE ########################
   # TODO: extract components common to both Core and API
   # FIXME: API_INCLUDE_DIR is not in the cmake cache at the time this is read
@@ -57,9 +57,13 @@ target_include_directories (awa_bootstrap_server_object PRIVATE ${awa_bootstrap_
 set_property (TARGET awa_bootstrap_server_object PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # static library liblwm2mserver.a
-add_library (awa_bootstrap_server_static STATIC $<TARGET_OBJECTS:awa_bootstrap_server_object>)
-set_target_properties (awa_bootstrap_server_static PROPERTIES OUTPUT_NAME "lwm2mbootstrapserver")
+if (BUILD_STATIC)
+  add_library (awa_bootstrap_server_static STATIC $<TARGET_OBJECTS:awa_bootstrap_server_object>)
+  set_target_properties (awa_bootstrap_server_static PROPERTIES OUTPUT_NAME "lwm2mbootstrapserver")
+endif ()
 
 # shared library liblwm2mserver.so
-add_library (awa_bootstrap_server_shared SHARED $<TARGET_OBJECTS:awa_bootstrap_server_object>)
-set_target_properties (awa_bootstrap_server_shared PROPERTIES OUTPUT_NAME "lwm2mbootstrapserver")
+if (BUILD_SHARED)
+  add_library (awa_bootstrap_server_shared SHARED $<TARGET_OBJECTS:awa_bootstrap_server_object>)
+  set_target_properties (awa_bootstrap_server_shared PROPERTIES OUTPUT_NAME "lwm2mbootstrapserver")
+endif ()
