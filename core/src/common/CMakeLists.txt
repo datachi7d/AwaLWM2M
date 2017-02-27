@@ -15,6 +15,10 @@ if (WITH_LINUX)
   list (APPEND awa_common_SOURCES network_abstraction_linux.c lwm2m_util_linux.c)
 endif ()
 
+if (WITH_RIOT)
+  list (APPEND awa_common_SOURCES network_abstraction_riot.c lwm2m_util_riot.c)
+endif ()
+
 if (WITH_LIBCOAP)
   list (APPEND awa_common_SOURCES coap_abstraction_libcoap.c)
 endif ()

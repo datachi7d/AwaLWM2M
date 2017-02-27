@@ -14,8 +14,9 @@ enable_testing ()
 
 # Options for target
 option (WITH_LINUX "Compile Awalwm2m for Linux" ON)
+option (WITH_RIOT "Compile Awalwm2m for RIOT-OS" OFF)
 
-if (NOT WITH_LINUX)
+if (NOT WITH_LINUX AND NOT WITH_RIOT)
   message(FATAL_ERROR "A target must be selected.")
 endif ()
 
