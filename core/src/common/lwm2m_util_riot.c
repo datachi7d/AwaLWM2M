@@ -20,13 +20,15 @@
  USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ************************************************************************************************************************/
 
-
+#include <arpa/inet.h>
+#include "xtimer.h"
+#include "lwm2m_debug.h"
 #include "lwm2m_util.h"
 
 // Get the system tick count in milliseconds
 uint64_t Lwm2mCore_GetTickCountMs(void)
 {
-    return 0;
+    return xtimer_now_usec64() / 1000;
 }
 
 
@@ -39,14 +41,35 @@ void Lwm2mCore_AddressTypeToPath(char * path, size_t pathSize, AddressType * add
 
 const char * Lwm2mCore_DebugPrintSockAddr(const struct sockaddr * sa)
 {
-    (void)sa;
-    return NULL;
+    static char out[255];
+    char buffer[64];
+    const char* ip;
+    int port;
+
+    switch (sa->sa_family)
+    {
+        case AF_INET:
+            ip = inet_ntop(AF_INET, &((struct sockaddr_in *)sa)->sin_addr,
+                           buffer, sizeof(buffer));
+            port = ntohs(((struct sockaddr_in *)sa)->sin_port);
+            sprintf(out, "%s:%d", ip, port);
+            break;
+        case AF_INET6:
+            ip = inet_ntop(AF_INET6, &((struct sockaddr_in6 *)sa)->sin6_addr,
+                           buffer, sizeof(buffer));
+            port =  ntohs(((struct sockaddr_in6 *)sa)->sin6_port);
+            sprintf(out, "[%s]:%d", ip, port);
+            break;
+        default:
+            Lwm2m_Error("Unsupported address family: %d\n", sa->sa_family);
+            break;
+    }
+    return out;
 }
 
 const char * Lwm2mCore_DebugPrintAddress(AddressType * addr)
 {
-    (void)addr;
-    return NULL;
+    return Lwm2mCore_DebugPrintSockAddr(&addr->Addr.Sa);
 }
 
 bool Lwm2mCore_ResolveAddressByName(unsigned char * address, int addressLength, AddressType * addr)
@@ -66,9 +89,11 @@ int Lwm2mCore_CompareAddresses(AddressType * addr1, AddressType * addr2)
 
 int Lwm2mCore_ComparePorts(AddressType * addr1, AddressType * addr2)
 {
-    (void)addr1;
-    (void)addr2;
-    return -1;
+    if(addr1->Addr.Sin6.sin6_port != addr2->Addr.Sin6.sin6_port)
+    {
+        return -1;
+    }
+    return 0;
 }
 
 int Lwm2mCore_GetIPAddressFromInterface(const char * interface, int addressFamily, char * destAddress, size_t destAddressLength)
