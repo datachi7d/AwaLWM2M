@@ -1,9 +1,8 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 new file mode 100644
-index 0000000..c42591b
 --- /dev/null
 +++ b/CMakeLists.txt
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,128 @@
 +cmake_minimum_required(VERSION 2.8.2)
 +Include (CheckIncludeFile)
 +Include (CheckFunctionExists)
@@ -131,15 +130,4 @@ index 0000000..c42591b
 +#if (ENABLE_GCOV)
 +#  target_link_libraries (tinydtls_static gcov)
 +#endif ()
-+
-+# libtinydtls.so
-+add_library (tinydtls_shared SHARED ${tinydtls_SOURCES})
-+set_target_properties (tinydtls_shared PROPERTIES OUTPUT_NAME "tinydtls")
-+set_target_properties (tinydtls_shared PROPERTIES POSITION_INDEPENDENT_CODE ON)
-+target_include_directories (tinydtls_shared PUBLIC ${tinydtls_INCLUDE_DIRS})
-+target_link_libraries (tinydtls_shared ${tinydtls_LIBS})
-+
-+install (TARGETS tinydtls_shared
-+    LIBRARY DESTINATION lib
-+)
 +
