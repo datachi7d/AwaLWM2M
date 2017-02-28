@@ -79,12 +79,45 @@ bool Lwm2mCore_ResolveAddressByName(unsigned char * address, int addressLength, 
     (void)addr;
     return false;
 }
-
+static int comparePorts(in_port_t x, in_port_t y)
+{
+    int result;
+    if (x == y)
+        result = 0;
+    else if  (x > y)
+        result = 1;
+    else
+        result = -1;
+    return result;
+}
 int Lwm2mCore_CompareAddresses(AddressType * addr1, AddressType * addr2)
 {
-    (void)addr1;
-    (void)addr2;
-    return -1;
+    int result = -1;
+    if (addr1->Addr.Sa.sa_family == addr2->Addr.Sa.sa_family)
+    {
+        switch (addr1->Addr.Sa.sa_family)
+        {
+            case AF_INET:
+                result = memcmp(&addr1->Addr.Sin.sin_addr.s_addr, &addr2->Addr.Sin.sin_addr, sizeof(addr2->Addr.Sin.sin_addr));
+                if (result == 0)
+                {
+                    result = comparePorts(addr1->Addr.Sin.sin_port, addr2->Addr.Sin.sin_port);
+                }
+                break;
+            case AF_INET6:
+                result = memcmp(&addr1->Addr.Sin6.sin6_addr, &addr2->Addr.Sin6.sin6_addr, sizeof(addr2->Addr.Sin6.sin6_addr));
+                if (result == 0)
+                {
+                    result = comparePorts(addr1->Addr.Sin6.sin6_port, addr2->Addr.Sin6.sin6_port);
+                }
+                break;
+            default:
+                Lwm2m_Error("Unsupported address family: %d\n", addr1->Addr.Sa.sa_family);
+                break;
+        }
+    }
+
+    return result;
 }
 
 int Lwm2mCore_ComparePorts(AddressType * addr1, AddressType * addr2)
@@ -98,6 +131,7 @@ int Lwm2mCore_ComparePorts(AddressType * addr1, AddressType * addr2)
 
 int Lwm2mCore_GetIPAddressFromInterface(const char * interface, int addressFamily, char * destAddress, size_t destAddressLength)
 {
+    // See GNRC netif
     (void)interface;
     (void)addressFamily;
     (void)destAddress;
