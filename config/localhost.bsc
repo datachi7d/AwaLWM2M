@@ -1,4 +1,4 @@
-ServerURI=coap://127.0.0.1:5683
+ServerURI=coap://[fe80::82c0:1bc7:e1d1:7c8b]:5683
 SecurityMode=0
 PublicKey=[PublicKey]
 SecretKey=[SecretKey]
