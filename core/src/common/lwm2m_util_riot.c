@@ -83,13 +83,8 @@ void Lwm2mCore_AddressTypeToPath(char * path, size_t pathSize, AddressType * add
 const char * Lwm2mCore_DebugPrintAddress(AddressType * addr)
 {
     //TODO: print addresses
+    (void)addr;
     return NULL;
-}
-
-bool Lwm2mCore_ResolveAddressByName(unsigned char * address, int addressLength, AddressType * addr)
-{
-    bool result = false;
-    return result;
 }
 
 static int comparePorts(in_port_t x, in_port_t y)
@@ -142,10 +137,3 @@ int Lwm2mCore_ComparePorts(AddressType * addr1, AddressType * addr2)
     }
     return 0;
 }
-
-int Lwm2mCore_GetIPAddressFromInterface(const char * interface, int addressFamily, char * destAddress, size_t destAddressLength)
-{
-    int returnCode = 0;
-    return returnCode;
-}
-
