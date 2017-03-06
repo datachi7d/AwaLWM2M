@@ -424,7 +424,7 @@ Lwm2mTreeNode * Lwm2mTreeNode_FindOrCreateChildNode(Lwm2mTreeNode * parent, int 
 
 static void Lwm2mTreeNode_CopySingleNode(Lwm2mTreeNode * root, Lwm2mTreeNode * copy)
 {
-    int rootID;
+    int rootID = 0;
     Lwm2mTreeNode_GetID(root, &rootID);
     Lwm2mTreeNode_SetID(copy, rootID);
 
@@ -479,8 +479,8 @@ int Lwm2mTreeNode_CompareRecursive(Lwm2mTreeNode * node1, Lwm2mTreeNode * node2)
     Lwm2mTreeNode * child2 = Lwm2mTreeNode_GetFirstChild(node2);
     while (child1)
     {
-        int child1ID;
-        int child2ID;
+        int child1ID = 0;
+        int child2ID = 0;
         const uint8_t * child1Value;
         const uint8_t * child2Value;
         uint16_t child1ValueLength;

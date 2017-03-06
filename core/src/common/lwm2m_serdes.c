@@ -134,7 +134,7 @@ int DeserialiseObject(AwaContentType type, Lwm2mTreeNode ** dest, const Definiti
     return -1;
 }
 
-int DeserialiseObjectInstance(int type, Lwm2mTreeNode ** dest, const DefinitionRegistry * registry, ObjectIDType objectID,
+int DeserialiseObjectInstance(AwaContentType type, Lwm2mTreeNode ** dest, const DefinitionRegistry * registry, ObjectIDType objectID,
                               ObjectInstanceIDType objectInstanceID, const char * buffer, int bufferLen)
 {
     SerialiserDeserialiser * serdes = GetSerialiserDeserialiser(type);
@@ -149,7 +149,7 @@ int DeserialiseObjectInstance(int type, Lwm2mTreeNode ** dest, const DefinitionR
     return -1;
 }
 
-int DeserialiseResource(int type, Lwm2mTreeNode ** dest, const DefinitionRegistry * registry, ObjectIDType objectID,
+int DeserialiseResource(AwaContentType type, Lwm2mTreeNode ** dest, const DefinitionRegistry * registry, ObjectIDType objectID,
                         ObjectInstanceIDType objectInstanceID, ResourceIDType resourceID, const char * buffer, int bufferLen)
 {
     SerialiserDeserialiser * serdes = GetSerialiserDeserialiser(type);

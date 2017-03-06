@@ -100,7 +100,7 @@ static void GetQueryString(Lwm2mContextType * context, int shortServerID, char *
     lifetime = Lwm2mServerObject_GetLifeTime(context, shortServerID);
     if (lifetime > 0)
     {
-        pos += snprintf(buffer + pos, len - pos, "&lt=%d", lifetime);
+        pos += snprintf(buffer + pos, len - pos, "&lt=%" PRId32, lifetime);
     }
     // Add transport binding
     pos += GetTransportBinding(context, shortServerID, buffer + pos, len - pos);
@@ -198,7 +198,7 @@ static void SendRegistrationUpdate(Lwm2mContextType * context, Lwm2mServerType *
         // Use a sensible default
         lifetime = 60;
     }
-    pos += snprintf(uriQuery, sizeof(uriQuery), "?lt=%d", lifetime);
+    pos += snprintf(uriQuery, sizeof(uriQuery), "?lt=%"PRId32, lifetime);
     pos += GetTransportBinding(context, server->ShortServerID, uriQuery + pos, sizeof(uriQuery) - pos);
 
     Lwm2m_Debug("Server %d will%s send full update.\n", server->ShortServerID, server->UpdateRegistration ? "" : " not");

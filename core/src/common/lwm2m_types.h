@@ -122,6 +122,21 @@ size_t Lwm2mCore_GetNumberOfResourceTypeStrings(void);
 const char * Lwm2mCore_ResourceTypeToString(AwaResourceType resourceType);
 AwaResourceType Lwm2mCore_ResourceTypeFromString(const char * resourceTypeString);
 
+
+#ifdef RIOT
+
+//HACK: seems like some boards (arm-based) don't have strdup declared.
+
+#include <string.h>
+
+#ifndef strdup
+extern char *strdup (const char *__s)
+     __THROW __attribute_malloc__ __nonnull ((1));
+
+#endif
+
+#endif
+
 #ifdef __cplusplus
 }
 #endif

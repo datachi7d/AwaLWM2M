@@ -317,7 +317,8 @@ coap_init_connection(uint16_t port)
 //    PRINTF("Listening on port %u\n", uip_ntohs(udp_conn->lport));
 
     /* initialize transaction ID */
-    current_mid = random_rand();
+    //TODO: use random MID
+    current_mid = 0;
 }
 /*---------------------------------------------------------------------------*/
 uint16_t

@@ -141,7 +141,7 @@ error:
     return result;
 }
 
-int TreeBuilder_CreateTreeFromObjectInstance(Lwm2mTreeNode ** dest, Lwm2mContextType * context, Lwm2mRequestOrigin requestOrigin,
+AwaResult TreeBuilder_CreateTreeFromObjectInstance(Lwm2mTreeNode ** dest, Lwm2mContextType * context, Lwm2mRequestOrigin requestOrigin,
                                              ObjectIDType objectID, ObjectInstanceIDType objectInstanceID)
 {
     AwaResult result = AwaResult_Success;
@@ -178,7 +178,7 @@ int TreeBuilder_CreateTreeFromObjectInstance(Lwm2mTreeNode ** dest, Lwm2mContext
     return result;
 }
 
-int TreeBuilder_CreateTreeFromObject(Lwm2mTreeNode ** dest, Lwm2mContextType * context, Lwm2mRequestOrigin requestOrigin, ObjectIDType objectID)
+AwaResult TreeBuilder_CreateTreeFromObject(Lwm2mTreeNode ** dest, Lwm2mContextType * context, Lwm2mRequestOrigin requestOrigin, ObjectIDType objectID)
 {
     AwaResult result = AwaResult_Success;
     *dest = Lwm2mTreeNode_Create();

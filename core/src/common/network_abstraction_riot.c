@@ -205,7 +205,7 @@ NetworkAddress * NetworkAddress_New(const char * uri, int uriLength)
                     {
                         break;
                     }
-                    else if (isdigit(uri[index]))
+                    else if (isdigit((int)uri[index]))
                     {
                         port = (port * 10) + (uri[index] - '0');
                     }

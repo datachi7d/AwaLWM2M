@@ -30,6 +30,7 @@
 #include "lwm2m_debug.h"
 #include "lwm2m_objects.h"
 
+#ifndef RIOT
 static bool ParseLine(BootstrapInfo * bootstrapInfo, char * line, size_t len)
 {
     if (len == 0)
@@ -188,6 +189,7 @@ const BootstrapInfo * BootstrapInformation_ReadConfigFile(const char * configFil
     return bootstrapInfo;
 }
 
+#endif
 void BootstrapInformation_Dump(const BootstrapInfo * bootstrapInfo)
 {
     Lwm2m_Info("ServerURI            : %s\n", bootstrapInfo->SecurityInfo.ServerURI);
