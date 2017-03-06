@@ -34,7 +34,8 @@
 #endif
 
 #ifdef RIOT
-  #include <net/sock.h>
+  #include <sys/socket.h>
+  #include <netinet/in.h>
 #endif
 
 #ifdef MICROCHIP_PIC32
@@ -91,8 +92,15 @@ typedef struct
 #ifdef RIOT
 typedef struct
 {
-   sock_ip_ep_t Address;
-   bool Secure;
+    socklen_t Size;
+    union
+    {
+        struct sockaddr     Sa;
+        struct sockaddr_storage St;
+        struct sockaddr_in  Sin;
+        struct sockaddr_in6 Sin6;
+    } Addr;
+    bool Secure;
 } AddressType;
 #endif
 

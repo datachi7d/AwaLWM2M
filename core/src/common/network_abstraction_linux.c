@@ -100,7 +100,7 @@ uint8_t encryptBuffer[ENCRYPT_BUFFER_LENGTH];
 
 static NetworkTransmissionError SendDTLS(NetworkAddress * destAddress, const uint8_t * buffer, int bufferLength, void *context);
 
-NetworkAddress * NetworkAddress_FromIPAddress(const char * ipAddress, uint16_t port)
+NetworkAddress * FromIPAddressString(const char * ipAddress, uint16_t port)
 {
     NetworkAddress * result;
     size_t size = sizeof(struct _NetworkAddress);
@@ -225,7 +225,7 @@ NetworkAddress * NetworkAddress_New(const char * uri, int uriLength)
                 NetworkAddress * networkAddress = NULL;
                 if (ip6Address)
                 {
-                    networkAddress = NetworkAddress_FromIPAddress(hostname, port);
+                    networkAddress = FromIPAddressString(hostname, port);
                 }
                 else
                 {
@@ -498,7 +498,7 @@ NetworkSocket * NetworkSocket_New(const char * ipAddress, NetworkSocketType sock
         DTLS_SetNetworkSendCallback(SendDTLS);
         if (ipAddress && (*ipAddress != '\0'))
         {
-            result->BindAddress = NetworkAddress_FromIPAddress(ipAddress, port);
+            result->BindAddress = FromIPAddressString(ipAddress, port);
             if (!result->BindAddress)
                 NetworkSocket_Free(&result);
         }

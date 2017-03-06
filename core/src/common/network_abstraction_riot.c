@@ -20,19 +20,24 @@
  USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ************************************************************************************************************************/
 
-
+#include <stdlib.h>
 #include <ctype.h>
-#include <errno.h>
 #include <string.h>
+#include <errno.h>
+
 #include <unistd.h>
-#include <arpa/inet.h>
 #include <sys/socket.h>
+typedef int SOCKET;
+#define SOCKET_ERROR            (-1)
+#define closesocket close
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#include "lwm2m_debug.h"
+#include "lwm2m_util.h"
 #include "network_abstraction.h"
 #include "dtls_abstraction.h"
-#include "lwm2m_debug.h"
 
-
-#define SOCKET_ERROR            (-1)
 
 struct _NetworkAddress
 {
@@ -78,7 +83,20 @@ typedef enum
 
 static NetworkAddressCache networkAddressCache[MAX_NETWORK_ADDRESS_CACHE] = {{0}};
 
-static NetworkAddress * NetworkAddress_FromIPAddress(const char * ipAddress, uint16_t port)
+static void addCachedAddress(NetworkAddress * address, const char * uri, int uriLength);
+static NetworkAddress * getCachedAddress(NetworkAddress * matchAddress, const char * uri, int uriLength);
+static NetworkAddress * getCachedAddressByUri(const char * uri, int uriLength);
+static int getUriHostLength(const char * uri, int uriLength);
+
+#ifndef ENCRYPT_BUFFER_LENGTH
+#define ENCRYPT_BUFFER_LENGTH 1024
+#endif
+
+uint8_t encryptBuffer[ENCRYPT_BUFFER_LENGTH];
+
+static NetworkTransmissionError SendDTLS(NetworkAddress * destAddress, const uint8_t * buffer, int bufferLength, void *context);
+
+NetworkAddress * FromIPAddressString(const char * ipAddress, uint16_t port)
 {
     NetworkAddress * result;
     size_t size = sizeof(struct _NetworkAddress);
@@ -102,313 +120,142 @@ static NetworkAddress * NetworkAddress_FromIPAddress(const char * ipAddress, uin
     return result;
 }
 
-static bool sendUDP(NetworkSocket * networkSocket, NetworkAddress * destAddress, const uint8_t * buffer, int bufferLength)
-{
-    bool result = false;
-    int socketHandle = networkSocket->Socket;
-    if (destAddress->Address.Sa.sa_family == AF_INET6)
-        socketHandle = networkSocket->SocketIPv6;
-    size_t addressLength = sizeof(struct sockaddr_storage);
-    while (bufferLength > 0)
-    {
-        errno = 0;
-        int sentBytes = sendto(socketHandle, buffer, bufferLength, 0, &destAddress->Address.Sa, addressLength);
-        int lastError = errno;
-        if (sentBytes == SOCKET_ERROR)
-        {
-            if ((lastError == EWOULDBLOCK) || (lastError == EINTR))
-            {
-                sentBytes = 0;
-            }
-            else
-            {
-                networkSocket->LastError = NetworkSocketError_SendError;
-                break;
-            }
-        }
-        buffer += sentBytes;
-        bufferLength -= sentBytes;
-    }
-
-    result = (bufferLength == 0);
-    return result;
-}
-
-static NetworkTransmissionError SendDTLS(NetworkAddress * destAddress, const uint8_t * buffer, int bufferLength, void *context)
-{
-    NetworkTransmissionError result = NetworkTransmissionError_None;
-    NetworkSocket * networkSocket = (NetworkSocket *)context;
-    if (networkSocket)
-    {
-        if (!sendUDP(networkSocket, destAddress, buffer, bufferLength))
-        {
-            result = NetworkTransmissionError_TransmitBufferFull;
-        }
-    }
-    return result;
-}
-
-
-static NetworkAddress * getCachedAddressByUri(const char * uri, int uriLength)
-{
-    NetworkAddress * result = NULL;
-    int index;
-    for (index = 0; index < MAX_NETWORK_ADDRESS_CACHE; index++)
-    {
-        if (networkAddressCache[index].uri && (memcmp(networkAddressCache[index].uri, uri, uriLength) == 0))
-        {
-            //Lwm2m_Debug("Address uri matched: %s\n", networkAddressCache[index].uri);
-            result = networkAddressCache[index].address;
-            break;
-        }
-    }
-    return result;
-}
-static NetworkAddress * getCachedAddress(NetworkAddress * matchAddress, const char * uri, int uriLength)
-{
-    NetworkAddress * result = NULL;
-    int index;
-    for (index = 0; index < MAX_NETWORK_ADDRESS_CACHE; index++)
-    {
-        NetworkAddress * address = networkAddressCache[index].address;
-        if (address)
-        {
-            if (NetworkAddress_Compare(matchAddress, address) == 0)
-            {
-                if (uri && uriLength > 0 && networkAddressCache[index].uri == NULL)
-                {
-                    // Add info to cached address
-                    address->Secure = matchAddress->Secure;
-                    networkAddressCache[index].uri = (char *)malloc(uriLength + 1);
-                    if (networkAddressCache[index].uri)
-                    {
-                        memcpy(networkAddressCache[index].uri, uri, uriLength);
-                        networkAddressCache[index].uri[uriLength] = 0;
-                        Lwm2m_Debug("Address add uri: %s\n", networkAddressCache[index].uri);
-                    }
-                }
-                result = address;
-                break;
-            }
-        }
-    }
-    return result;
-}
-
-static void addCachedAddress(NetworkAddress * address, const char * uri, int uriLength)
-{
-    if (address)
-    {
-        int index;
-        for (index = 0; index < MAX_NETWORK_ADDRESS_CACHE; index++)
-        {
-            if (networkAddressCache[index].address == NULL)
-            {
-                if (uri && uriLength > 0)
-                {
-                    networkAddressCache[index].uri = (char *)malloc(uriLength + 1);
-                    if (networkAddressCache[index].uri)
-                    {
-                        memcpy(networkAddressCache[index].uri, uri, uriLength);
-                        networkAddressCache[index].uri[uriLength] = 0;
-                        networkAddressCache[index].address = address;
-                        Lwm2m_Debug("Address add: %s\n", networkAddressCache[index].uri);
-                    }
-                }
-                else
-                {
-                    networkAddressCache[index].address = address;
-                    networkAddressCache[index].uri = NULL;
-                    Lwm2m_Debug("Address add (received)\n");    // TODO - print remote address
-                }
-                break;
-            }
-        }
-    }
-}
-
-static int getUriHostLength(const char * uri, int uriLength)
-{
-    // Search for end of host + optional port
-    int result = uriLength;
-    char * pathStart = memchr(uri, '/', uriLength);
-    if (pathStart && pathStart[1] == '/' )
-    {
-        pathStart += 2;
-        int lengthRemaining = uriLength - (pathStart - uri);
-        if (lengthRemaining > 0)
-        {
-            pathStart = memchr(pathStart, '/', lengthRemaining);
-            if (pathStart)
-            {
-                result = pathStart - uri;
-            }
-        }
-    }
-    return result;
-}
-
 
 NetworkAddress * NetworkAddress_New(const char * uri, int uriLength)
 {
     NetworkAddress * result = NULL;
-    if (!uri || uriLength <= 0)
-        return result;
-
-    int uriHostLength = getUriHostLength(uri, uriLength);
-    if (uriHostLength > 0)
-        result = getCachedAddressByUri(uri, uriHostLength);
-    if (!result)
+    if (uri && uriLength > 0)
     {
-        bool ip6Address = false;
-        bool secure = false;
-        int index = 0;
-        int startIndex = 0;
-        int port = 5683;
-        char hostname[MAX_URI_LENGTH];
-        int hostnameLength = 0;
-        UriParseState state = UriParseState_Scheme;
-        while (index < uriLength)
+        int uriHostLength = getUriHostLength(uri, uriLength);
+        if (uriHostLength > 0)
+            result = getCachedAddressByUri(uri, uriHostLength);
+        if (!result)
         {
-            if (state == UriParseState_Scheme)
+            bool ip6Address = false;
+            bool secure = false;
+            int index = 0;
+            int startIndex = 0;
+            int port = 5683;
+            char hostname[MAX_URI_LENGTH];
+            int hostnameLength = 0;
+            UriParseState state = UriParseState_Scheme;
+            while (index < uriLength)
             {
-                if ((uri[index] == ':') && ((index + 2) <  uriLength) && (uri[index+1] == '/') &&  (uri[index+2] == '/'))
+                if (state == UriParseState_Scheme)
                 {
-                    int length = index - startIndex;
-                    if ((length == 4) && (strncmp(&uri[startIndex],"coap", length) == 0))
+                    if ((uri[index] == ':') && ((index + 2) <  uriLength) && (uri[index+1] == '/') &&  (uri[index+2] == '/'))
                     {
+                        int length = index - startIndex;
+                        if ((length == 4) && (strncmp(&uri[startIndex],"coap", length) == 0))
+                        {
 
+                        }
+                        else if ((length == 5) && (strncmp(&uri[startIndex],"coaps", length) == 0))
+                        {
+                            port = 5684;
+                            secure = true;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                        state = UriParseState_Hostname;
+                        index += 2;
+                        startIndex = index + 1;
                     }
-                    else if ((length == 5) && (strncmp(&uri[startIndex],"coaps", length) == 0))
+                    index++;
+                }
+                else if (state == UriParseState_Hostname)
+                {
+                    if ((uri[index] == '[') )
                     {
-                        port = 5684;
-                        secure = true;
+                        index++;
+                        startIndex = index;
+                        while (index < uriLength)
+                        {
+                            if (uri[index] == ']')
+                            {
+                                ip6Address = true;
+                                break;
+                            }
+                            hostname[hostnameLength] = uri[index];
+                            hostnameLength++;
+                            index++;
+                        }
+                    }
+                    else if ((uri[index] == ':') || (uri[index] == '/') )
+                    {
+                        hostname[hostnameLength] = 0;
+                        if  (uri[index] == '/')
+                            break;
+                        state = UriParseState_Port;
+                        port = 0;
+                        startIndex = index + 1;
                     }
                     else
                     {
-                        break;
-                    }
-                    state = UriParseState_Hostname;
-                    index += 2;
-                    startIndex = index + 1;
-                }
-                index++;
-            }
-            else if (state == UriParseState_Hostname)
-            {
-                if ((uri[index] == '[') )
-                {
-                    index++;
-                    startIndex = index;
-                    while (index < uriLength)
-                    {
-                        if (uri[index] == ']')
-                        {
-                            ip6Address = true;
-                            break;
-                        }
                         hostname[hostnameLength] = uri[index];
                         hostnameLength++;
-                        index++;
                     }
+                    index++;
                 }
-                else if ((uri[index] == ':') || (uri[index] == '/') )
+                else if (state == UriParseState_Port)
                 {
-                    hostname[hostnameLength] = 0;
-                    if  (uri[index] == '/')
-                        break;
-                    state = UriParseState_Port;
-                    port = 0;
-                    startIndex = index + 1;
-                }
-                else
-                {
-                    hostname[hostnameLength] = uri[index];
-                    hostnameLength++;
-                }
-                index++;
-            }
-            else if (state == UriParseState_Port)
-            {
-                if (uri[index] == '/')
-                {
-                    break;
-                }
-                else if (isdigit(uri[index]))
-                {
-                    port = (port * 10) + (uri[index] - '0');
-                }
-                index++;
-            }
-        }
-        if (state == UriParseState_Hostname)
-        {
-            hostname[hostnameLength] = 0;
-        }
-        if (hostnameLength > 0 && port > 0)
-        {
-            NetworkAddress * networkAddress = NULL;
-            if (ip6Address)
-            {
-                networkAddress = NetworkAddress_FromIPAddress(hostname, port);
-            }
-            else
-            {
-                //struct hostent *resolvedAddress = gethostbyname(hostname);
-                //if (resolvedAddress)
-                {
-                    size_t size = sizeof(struct _NetworkAddress);
-                    networkAddress = (NetworkAddress *) malloc(size);
-                    if (networkAddress)
+                    if (uri[index] == '/')
                     {
-                        memset(networkAddress, 0, size);
-                        //if (resolvedAddress->h_addrtype == AF_INET)
-                       // {
-                            networkAddress->Address.Sin.sin_family = AF_INET;
-                            memcpy(&networkAddress->Address.Sin.sin_addr, hostname, sizeof(struct in_addr));
-                            networkAddress->Address.Sin.sin_port = htons(port);
-                        //}
-                        //else if (resolvedAddress->h_addrtype == AF_INET6)
-                        //{
-                        //    networkAddress->Address.Sin6.sin6_family = AF_INET6;
-                         //   memcpy(&networkAddress->Address.Sin6.sin6_addr, hostname, sizeof(struct in6_addr));
-                        //    networkAddress->Address.Sin6.sin6_port = htons(port);
-                        //}
-                        //else
-                       // {
-                        //    free(networkAddress);
-                         //   networkAddress = NULL;
-                       // }
+                        break;
                     }
+                    else if (isdigit(uri[index]))
+                    {
+                        port = (port * 10) + (uri[index] - '0');
+                    }
+                    index++;
                 }
             }
-            if (networkAddress)
+            if (state == UriParseState_Hostname)
             {
-                networkAddress->Secure = secure;
-                result = getCachedAddress(networkAddress, uri, uriHostLength);
-                if (result)
+                hostname[hostnameLength] = 0;
+            }
+            if (hostnameLength > 0 && port > 0)
+            {
+                NetworkAddress * networkAddress = NULL;
+                if (ip6Address)
                 {
-                    // Matched existing address
-                    free(networkAddress);
+                    networkAddress = FromIPAddressString(hostname, port);
                 }
                 else
                 {
-                    result = networkAddress;
+                    //TODO: resolve ip address from name
+                    free(networkAddress);
+                    networkAddress = NULL;
                 }
+                if (networkAddress)
+                {
+                    networkAddress->Secure = secure;
+                    result = getCachedAddress(networkAddress, uri, uriHostLength);
+                    if (result)
+                    {
+                        // Matched existing address
+                        free(networkAddress);
+                    }
+                    else
+                    {
+                        result = networkAddress;
+                    }
+                }
+
             }
-
         }
-    }
 
-    if (result)
-    {
-        if (result->useCount == 0)
+        if (result)
         {
-            addCachedAddress(result, uri, uriHostLength);
+            if (result->useCount == 0)
+            {
+                addCachedAddress(result, uri, uriHostLength);
+            }
+            result->useCount++;
         }
-        result->useCount++;
     }
-
     return result;
 }
 
@@ -453,10 +300,15 @@ int NetworkAddress_Compare(NetworkAddress * address1, NetworkAddress * address2)
 
 void NetworkAddress_SetAddressType(NetworkAddress * address, AddressType * addressType)
 {
-    if (address != NULL && addressType != NULL)
+    if (address && addressType)
     {
-        memcpy(&addressType->Address, &address->Address, sizeof(addressType->Address));
+        addressType->Size = sizeof(addressType->Addr);
+        memcpy(&addressType->Addr, &address->Address, addressType->Size);
         addressType->Secure = address->Secure;
+//        if (addressType->Addr.Sa.sa_family == AF_INET6)
+//            addressType->Addr.Sin6.sin6_port = ntohs(address->Address.Sin6.sin6_port);
+//        else
+//            addressType->Addr.Sin.sin_port = ntohs(address->Address.Sin.sin_port);
     }
 }
 
@@ -503,6 +355,109 @@ bool NetworkAddress_IsSecure(const NetworkAddress * address)
     return result;
 }
 
+static void addCachedAddress(NetworkAddress * address, const char * uri, int uriLength)
+{
+    if (address)
+    {
+        int index;
+        for (index = 0; index < MAX_NETWORK_ADDRESS_CACHE; index++)
+        {
+            if (networkAddressCache[index].address == NULL)
+            {
+                if (uri && uriLength > 0)
+                {
+                    networkAddressCache[index].uri = (char *)malloc(uriLength + 1);
+                    if (networkAddressCache[index].uri)
+                    {
+                        memcpy(networkAddressCache[index].uri, uri, uriLength);
+                        networkAddressCache[index].uri[uriLength] = 0;
+                        networkAddressCache[index].address = address;
+                        Lwm2m_Debug("Address add: %s\n", networkAddressCache[index].uri);
+                    }
+                }
+                else
+                {
+                    networkAddressCache[index].address = address;
+                    networkAddressCache[index].uri = NULL;
+                    Lwm2m_Debug("Address add (received)\n");    // TODO - print remote address
+                }
+                break;
+            }
+        }
+    }
+}
+
+
+
+static NetworkAddress * getCachedAddressByUri(const char * uri, int uriLength)
+{
+    NetworkAddress * result = NULL;
+    int index;
+    for (index = 0; index < MAX_NETWORK_ADDRESS_CACHE; index++)
+    {
+        if (networkAddressCache[index].uri && (memcmp(networkAddressCache[index].uri, uri, uriLength) == 0))
+        {
+            //Lwm2m_Debug("Address uri matched: %s\n", networkAddressCache[index].uri);
+            result = networkAddressCache[index].address;
+            break;
+        }
+    }
+    return result;
+}
+
+static NetworkAddress * getCachedAddress(NetworkAddress * matchAddress, const char * uri, int uriLength)
+{
+    NetworkAddress * result = NULL;
+    int index;
+    for (index = 0; index < MAX_NETWORK_ADDRESS_CACHE; index++)
+    {
+        NetworkAddress * address = networkAddressCache[index].address;
+        if (address)
+        {
+            if (NetworkAddress_Compare(matchAddress, address) == 0)
+            {
+                if (uri && uriLength > 0 && networkAddressCache[index].uri == NULL)
+                {
+                    // Add info to cached address
+                    address->Secure = matchAddress->Secure;
+                    networkAddressCache[index].uri = (char *)malloc(uriLength + 1);
+                    if (networkAddressCache[index].uri)
+                    {
+                        memcpy(networkAddressCache[index].uri, uri, uriLength);
+                        networkAddressCache[index].uri[uriLength] = 0;
+                        Lwm2m_Debug("Address add uri: %s\n", networkAddressCache[index].uri);
+                    }
+                }
+                result = address;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+static int getUriHostLength(const char * uri, int uriLength)
+{
+    // Search for end of host + optional port
+    int result = uriLength;
+    char * pathStart = memchr(uri, '/', uriLength);
+    if (pathStart && pathStart[1] == '/' )
+    {
+        pathStart += 2;
+        int lengthRemaining = uriLength - (pathStart - uri);
+        if (lengthRemaining > 0)
+        {
+            pathStart = memchr(pathStart, '/', lengthRemaining);
+            if (pathStart)
+            {
+                result = pathStart - uri;
+            }
+        }
+    }
+    return result;
+}
+
+
 NetworkSocket * NetworkSocket_New(const char * ipAddress, NetworkSocketType socketType, uint16_t port)
 {
     size_t size = sizeof(struct _NetworkSocket);
@@ -515,7 +470,7 @@ NetworkSocket * NetworkSocket_New(const char * ipAddress, NetworkSocketType sock
         DTLS_SetNetworkSendCallback(SendDTLS);
         if (ipAddress && (*ipAddress != '\0'))
         {
-            result->BindAddress = NetworkAddress_FromIPAddress(ipAddress, port);
+            result->BindAddress = FromIPAddressString(ipAddress, port);
             if (!result->BindAddress)
                 NetworkSocket_Free(&result);
         }
@@ -548,157 +503,329 @@ int NetworkSocket_GetFileDescriptor(NetworkSocket * networkSocket)
 void NetworkSocket_SetCertificate(NetworkSocket * networkSocket, const uint8_t * cert, int certLength, AwaCertificateFormat format)
 {
     (void)networkSocket;
-    (void)cert;
-    (void)certLength;
-    (void)format;
+    DTLS_SetCertificate(cert, certLength, format);
 }
 
 void NetworkSocket_SetPSK(NetworkSocket * networkSocket, const char * identity, const uint8_t * key, int keyLength)
 {
     (void)networkSocket;
-    (void)identity;
-    (void)key;
-    (void)keyLength;
+    DTLS_SetPSK(identity, key, keyLength);
 }
+
 
 bool NetworkSocket_StartListening(NetworkSocket * networkSocket)
 {
     bool result = false;
-    if (!networkSocket)
-        return false;
-
-    int protocol = IPPROTO_UDP;
-    int socketMode = SOCK_DGRAM;
-    if ((networkSocket->SocketType & NetworkSocketType_TCP) == NetworkSocketType_TCP)
+    if (networkSocket)
     {
-        protocol = IPPROTO_TCP;
-        socketMode = SOCK_STREAM;
-    }
-    struct sockaddr_in ip4AnyAddress;
-    struct sockaddr_in6 ip6AnyAddress;
-
-    struct sockaddr_in * ip4Address = NULL;
-    struct sockaddr_in6 * ip6Address = NULL;
-    if (networkSocket->BindAddress)
-    {
-        if (networkSocket->BindAddress->Address.Sa.sa_family == AF_INET6)
+        int protocol = IPPROTO_UDP;
+        int socketMode = SOCK_DGRAM;
+        if ((networkSocket->SocketType & NetworkSocketType_TCP) == NetworkSocketType_TCP)
         {
-            ip6Address = &networkSocket->BindAddress->Address.Sin6;
+            protocol = IPPROTO_TCP;
+            socketMode = SOCK_STREAM;
         }
-        else if (networkSocket->BindAddress->Address.Sa.sa_family == AF_INET)
+        struct sockaddr_in ip4AnyAddress;
+        struct sockaddr_in6 ip6AnyAddress;
+
+        struct sockaddr_in * ip4Address = NULL;
+        struct sockaddr_in6 * ip6Address = NULL;
+        if (networkSocket->BindAddress)
         {
-            ip4Address = &networkSocket->BindAddress->Address.Sin;
-        }
-    }
-    else
-    {
-
-        memset(&ip4AnyAddress, 0, sizeof(struct sockaddr_in));
-        ip4AnyAddress.sin_family = AF_INET;
-        ip4AnyAddress.sin_addr.s_addr = INADDR_ANY;
-        ip4AnyAddress.sin_port = htons(networkSocket->Port);
-        ip4Address = &ip4AnyAddress;
-
-        memset(&ip6AnyAddress, 0, sizeof(struct sockaddr_in6));
-        ip6AnyAddress.sin6_family = AF_INET6;
-        ip6AnyAddress.sin6_port = htons(networkSocket->Port);
-        ip6Address = &ip6AnyAddress;
-
-    }
-    if (ip4Address)
-        networkSocket->Socket = socket(AF_INET, socketMode, protocol);
-    else
-        networkSocket->Socket = SOCKET_ERROR;
-    if (networkSocket->Socket != SOCKET_ERROR)
-    {
-        struct sockaddr *address = NULL;
-        socklen_t addressLength = 0;
-        addressLength = sizeof(struct sockaddr_in);
-        address = (struct sockaddr *)ip4Address;
-
-        // RIOT-OS does not support fcntl and O_NONBLOCK
-        //int flag = fcntl(networkSocket->Socket, F_GETFL);
-        //flag = flag | O_NONBLOCK;
-        //if (fcntl(networkSocket->Socket, F_SETFL, flag) < 0)
-        {
-            // ignore error
-        }
-        if (bind(networkSocket->Socket, address, addressLength) == SOCKET_ERROR)
-        {
-            Lwm2m_Debug("Failed to bind to ip4 socket\n");
+            if (networkSocket->BindAddress->Address.Sa.sa_family == AF_INET6)
+            {
+                ip6Address = &networkSocket->BindAddress->Address.Sin6;
+            }
+            else if (networkSocket->BindAddress->Address.Sa.sa_family == AF_INET)
+            {
+                ip4Address = &networkSocket->BindAddress->Address.Sin;
+            }
         }
         else
         {
-            result = true;
+
+            memset(&ip4AnyAddress, 0, sizeof(struct sockaddr_in));
+            ip4AnyAddress.sin_family = AF_INET;
+            ip4AnyAddress.sin_addr.s_addr = INADDR_ANY;
+            ip4AnyAddress.sin_port = htons(networkSocket->Port);
+            ip4Address = &ip4AnyAddress;
+
+            memset(&ip6AnyAddress, 0, sizeof(struct sockaddr_in6));
+            ip6AnyAddress.sin6_family = AF_INET6;
+            ip6AnyAddress.sin6_port = htons(networkSocket->Port);
+            ip6Address = &ip6AnyAddress;
 
         }
-    }
-    if (ip6Address)
-        networkSocket->SocketIPv6 = socket(AF_INET6, socketMode, protocol);
-    else
-        networkSocket->SocketIPv6 = SOCKET_ERROR;
-    if (networkSocket->SocketIPv6 != SOCKET_ERROR)
-    {
-
-        // RIOT-OS does not support setsockopt, it always returns -1
-        //int yes = 1;
-        //if (setsockopt(networkSocket->SocketIPv6, IPPROTO_IPV6, IPV6_V6ONLY, &yes, sizeof(yes) != SOCKET_ERROR))
+        if (ip4Address)
+            networkSocket->Socket = socket(AF_INET, socketMode, protocol);
+        else
+            networkSocket->Socket = SOCKET_ERROR;
+        if (networkSocket->Socket != SOCKET_ERROR)
         {
             struct sockaddr *address = NULL;
             socklen_t addressLength = 0;
-            addressLength = sizeof(struct sockaddr_in6);
-            address = (struct sockaddr *)ip6Address;
-            // RIOT-OS does not support fcntl and O_NONBLOCK
-            //int flag = fcntl(networkSocket->SocketIPv6, F_GETFL);
-            //flag = flag | O_NONBLOCK;
-            //if (fcntl(networkSocket->SocketIPv6, F_SETFL, flag) < 0)
+            addressLength = sizeof(struct sockaddr_in);
+            address = (struct sockaddr *)ip4Address;
+            //TODO: set non blocking
+            if (bind(networkSocket->Socket, address, addressLength) == SOCKET_ERROR)
             {
-                // ignore error
-            }
-            if (bind(networkSocket->SocketIPv6, address, addressLength) == SOCKET_ERROR)
-            {
-                Lwm2m_Debug("Failed to bind to ip6 socket\n");
+                Lwm2m_Debug("Failed to bind to ip4 socket\n");
             }
             else
             {
                 result = true;
+
             }
         }
-    }
+        if (ip6Address)
+            networkSocket->SocketIPv6 = socket(AF_INET6, socketMode, protocol);
+        else
+            networkSocket->SocketIPv6 = SOCKET_ERROR;
+        if (networkSocket->SocketIPv6 != SOCKET_ERROR)
+        {
 
+                struct sockaddr *address = NULL;
+                socklen_t addressLength = 0;
+                addressLength = sizeof(struct sockaddr_in6);
+                address = (struct sockaddr *)ip6Address;
+                //TODO: set non blocking
+                if (bind(networkSocket->SocketIPv6, address, addressLength) == SOCKET_ERROR)
+                {
+                    Lwm2m_Debug("Failed to bind to ip6 socket\n");
+                }
+                else
+                {
+                    result = true;
+                }
+        }
+    }
+    return result;
+}
+
+bool readUDP(NetworkSocket * networkSocket, int socketHandle, uint8_t * buffer, int bufferLength, NetworkAddress ** sourceAddress, int *readLength)
+{
+    bool result = false;
+    struct sockaddr_storage sourceSocket;
+    socklen_t sourceSocketLength = sizeof(struct sockaddr_storage);
+    errno = 0;
+    *readLength = recvfrom(socketHandle, buffer, bufferLength, 0,
+                           (struct sockaddr *)&sourceSocket,
+                           &sourceSocketLength);
+    int lastError = errno;
+    if (*readLength == SOCKET_ERROR)
+    {
+        *readLength = 0;
+        if ((lastError == EWOULDBLOCK) || (lastError == EAGAIN))
+        {
+            result = true;
+        }
+        else
+        {
+            networkSocket->LastError = NetworkSocketError_ReadError;
+        }
+    }
+    else
+    {
+        NetworkAddress * networkAddress = NULL;
+        NetworkAddress matchAddress;
+        size_t size = sizeof(struct _NetworkAddress);
+        memset(&matchAddress, 0, size);
+        memcpy(&matchAddress.Address.Sa, &sourceSocket, sourceSocketLength);
+        matchAddress.Secure = (networkSocket->SocketType & NetworkSocketType_Secure) == NetworkSocketType_Secure;
+        networkAddress = getCachedAddress(&matchAddress, NULL, 0);
+
+        if (networkAddress == NULL)
+        {
+            networkAddress = (NetworkAddress *)malloc(size);
+            if (networkAddress)
+            {
+                // Add new address to cache (note: uri and secure is unknown)
+                memcpy(networkAddress, &matchAddress, size);
+                addCachedAddress(networkAddress, NULL, 0);
+                networkAddress->useCount++;         // TODO - ensure addresses are freed? (after t/o or transaction or DTLS session closed)
+            }
+        }
+        if (networkAddress)
+        {
+            *sourceAddress = networkAddress;
+            result = true;
+        }
+    }
     return result;
 }
 
 bool NetworkSocket_Read(NetworkSocket * networkSocket, uint8_t * buffer, int bufferLength, NetworkAddress ** sourceAddress, int *readLength)
 {
-    (void)networkSocket;
-    (void)buffer;
-    (void)bufferLength;
-    (void)sourceAddress;
-    (void)readLength;
-    return false;
+    bool result = false;
+    if (networkSocket)
+    {
+        networkSocket->LastError = NetworkSocketError_NoError;
+        if (buffer && bufferLength > 0 && readLength)
+        {
+            *readLength = 0;
+            if ((networkSocket->SocketType & NetworkSocketType_UDP) == NetworkSocketType_UDP)
+            {
+                if (sourceAddress)
+                {
+                   if ((networkSocket->Socket != SOCKET_ERROR) && readUDP(networkSocket, networkSocket->Socket, buffer, bufferLength, sourceAddress, readLength))
+                   {
+                       result = true;
+                       if (*readLength == 0)
+                       {
+                           readUDP(networkSocket, networkSocket->SocketIPv6, buffer, bufferLength, sourceAddress, readLength);
+                       }
+                   }
+                   else if ((networkSocket->SocketIPv6 != SOCKET_ERROR) && readUDP(networkSocket, networkSocket->SocketIPv6, buffer, bufferLength, sourceAddress, readLength))
+                   {
+                       result = true;
+                   }
+                   if ((*readLength > 0) && *sourceAddress && (*sourceAddress)->Secure)
+                   {
+                       if (DTLS_Decrypt(*sourceAddress, buffer, *readLength, encryptBuffer, ENCRYPT_BUFFER_LENGTH, readLength, networkSocket))
+                       {
+                           if (*readLength > 0)
+                           {
+                               memcpy(buffer, encryptBuffer, *readLength);
+                           }
+                       }
+                   }
+                }
+                else
+                {
+                    networkSocket->LastError = NetworkSocketError_InvalidArguments;
+                }
+            }
+            else
+            {
+                errno = 0;
+                *readLength = recv(networkSocket->Socket, buffer, bufferLength, 0);
+                int lastError = errno;
+                if (*readLength == 0)
+                {
+                    networkSocket->LastError = NetworkSocketError_ConnectionLost;
+                }
+                else if (*readLength == SOCKET_ERROR)
+                {
+                    *readLength = 0;
+                    if (lastError == EWOULDBLOCK)
+                        *readLength = 0;
+                    else if (lastError == ENOTCONN)
+                        networkSocket->LastError = NetworkSocketError_ConnectionLost;
+                    else if (lastError == EBADF)
+                        networkSocket->LastError = NetworkSocketError_ConnectionLost;
+                }
+            }
+        }
+        else
+        {
+            networkSocket->LastError = NetworkSocketError_InvalidArguments;
+        }
+    }
+    return result;
+}
+
+bool sendUDP(NetworkSocket * networkSocket, NetworkAddress * destAddress, const uint8_t * buffer, int bufferLength)
+{
+    bool result = false;
+    int socketHandle = networkSocket->Socket;
+    if (destAddress->Address.Sa.sa_family == AF_INET6)
+        socketHandle = networkSocket->SocketIPv6;
+    size_t addressLength = sizeof(struct sockaddr_storage);
+    while (bufferLength > 0)
+    {
+        errno = 0;
+        int sentBytes = sendto(socketHandle, buffer, bufferLength, 0, &destAddress->Address.Sa, addressLength);
+        int lastError = errno;
+        if (sentBytes == SOCKET_ERROR)
+        {
+            if ((lastError == EWOULDBLOCK) || (lastError == EINTR))
+            {
+                sentBytes = 0;
+            }
+            else
+            {
+                networkSocket->LastError = NetworkSocketError_SendError;
+                break;
+            }
+        }
+        buffer += sentBytes;
+        bufferLength -= sentBytes;
+    }
+
+    result = (bufferLength == 0);
+    return result;
 }
 
 bool NetworkSocket_Send(NetworkSocket * networkSocket, NetworkAddress * destAddress, uint8_t * buffer, int bufferLength)
 {
-    (void)networkSocket;
-    (void)destAddress;
-    (void)buffer;
-    (void)bufferLength;
-    return false;
+    bool result = false;
+    if (networkSocket)
+    {
+        networkSocket->LastError = NetworkSocketError_NoError;
+        if (buffer && bufferLength > 0)
+        {
+            if ((networkSocket->SocketType & NetworkSocketType_UDP) == NetworkSocketType_UDP)
+            {
+                if (destAddress)
+                {
+                    if (destAddress->Secure)
+                    {
+                        int encryptedBytes;
+                        if (DTLS_Encrypt(destAddress, buffer, bufferLength, encryptBuffer, ENCRYPT_BUFFER_LENGTH, &encryptedBytes, networkSocket))
+                        {
+                            buffer = encryptBuffer;
+                            bufferLength = encryptedBytes;
+                        }
+                        else
+                        {
+                            bufferLength = 0;
+                        }
+                    }
+                    if (bufferLength > 0)
+                    {
+                        result = sendUDP(networkSocket, destAddress, buffer, bufferLength);
+                    }
+                }
+                else
+                {
+                    networkSocket->LastError = NetworkSocketError_InvalidArguments;
+                }
+            }
+        }
+        else
+        {
+            networkSocket->LastError = NetworkSocketError_InvalidArguments;
+        }
+    }
+    return result;
 }
 
 void NetworkSocket_Free(NetworkSocket ** networkSocket)
 {
-    if (!networkSocket || !*networkSocket)
-        return;
+    if (networkSocket && *networkSocket)
+    {
+        if ((*networkSocket)->Socket != SOCKET_ERROR)
+            close((*networkSocket)->Socket);
+        if ((*networkSocket)->SocketIPv6 != SOCKET_ERROR)
+            close((*networkSocket)->SocketIPv6);
+        if ((*networkSocket)->BindAddress)
+            NetworkAddress_Free(&(*networkSocket)->BindAddress);
+        free(*networkSocket);
+        *networkSocket = NULL;
+    }
+}
 
-    if ((*networkSocket)->Socket != SOCKET_ERROR)
-        close((*networkSocket)->Socket);
-    if ((*networkSocket)->SocketIPv6 != SOCKET_ERROR)
-        close((*networkSocket)->SocketIPv6);
-    if ((*networkSocket)->BindAddress)
-        NetworkAddress_Free(&(*networkSocket)->BindAddress);
-    free(*networkSocket);
-    *networkSocket = NULL;
+
+static NetworkTransmissionError SendDTLS(NetworkAddress * destAddress, const uint8_t * buffer, int bufferLength, void *context)
+{
+    NetworkTransmissionError result = NetworkTransmissionError_None;
+    NetworkSocket * networkSocket = (NetworkSocket *)context;
+    if (networkSocket)
+    {
+        if (!sendUDP(networkSocket, destAddress, buffer, bufferLength))
+        {
+            result = NetworkTransmissionError_TransmitBufferFull;
+        }
+    }
+    return result;
 }
