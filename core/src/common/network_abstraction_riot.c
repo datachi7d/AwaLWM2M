@@ -453,15 +453,10 @@ int NetworkAddress_Compare(NetworkAddress * address1, NetworkAddress * address2)
 
 void NetworkAddress_SetAddressType(NetworkAddress * address, AddressType * addressType)
 {
-    if (address && addressType)
+    if (address != NULL && addressType != NULL)
     {
-        addressType->Size = sizeof(addressType->Addr);
-        memcpy(&addressType->Addr, &address->Address, addressType->Size);
+        memcpy(&addressType->Address, &address->Address, sizeof(addressType->Address));
         addressType->Secure = address->Secure;
-//        if (addressType->Addr.Sa.sa_family == AF_INET6)
-//            addressType->Addr.Sin6.sin6_port = ntohs(address->Address.Sin6.sin6_port);
-//        else
-//            addressType->Addr.Sin.sin_port = ntohs(address->Address.Sin.sin_port);
     }
 }
 

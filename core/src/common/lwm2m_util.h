@@ -60,11 +60,10 @@ int64_t ptrToInt64(void * ptr);
 
 void Lwm2mCore_AddressTypeToPath(char * path, size_t pathSize, AddressType * addr);
 
-#ifndef CONTIKI
-#ifndef MICROCHIP_PIC32
+#ifdef POSIX
 const char * Lwm2mCore_DebugPrintSockAddr(const struct sockaddr * sa);
 #endif
-#endif
+
 const char * Lwm2mCore_DebugPrintAddress(AddressType * addr);
 
 bool Lwm2mCore_ResolveAddressByName(unsigned char * address, int addressLength, AddressType * addr);

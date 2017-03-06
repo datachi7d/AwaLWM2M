@@ -23,6 +23,8 @@ option (WITH_MBEDTLS "Enable mbedTLS DTLS support" OFF)
 option (WITH_SYSTEMD "Install systemd service files" OFF)
 
 
+add_definitions (-DPOSIX)
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING
       "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
