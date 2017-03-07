@@ -27,7 +27,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include "network_abstraction.h"
+#include "network_abstraction_posix.h"
 #include "dtls_abstraction.h"
 #include "lwm2m_debug.h"
 
@@ -83,30 +83,6 @@ static NetworkAddressCache networkAddressCache[MAX_NETWORK_ADDRESS_CACHE] = {{0}
 #endif
 
 uint8_t encryptBuffer[ENCRYPT_BUFFER_LENGTH];
-
-static NetworkAddress * NetworkAddress_FromIPAddress(const char * ipAddress, uint16_t port)
-{
-    NetworkAddress * result;
-    size_t size = sizeof(struct _NetworkAddress);
-    result = (NetworkAddress *)malloc(size);
-    memset(result, 0, size);
-    if (inet_pton(AF_INET, ipAddress, &result->Address.Sin.sin_addr) == 1)
-    {
-        result->Address.Sin.sin_family = AF_INET;
-        result->Address.Sin.sin_port = htons(port);
-    }
-    else if (inet_pton(AF_INET6, ipAddress, &result->Address.Sin6.sin6_addr) == 1)
-    {
-        result->Address.Sin6.sin6_family = AF_INET6;
-        result->Address.Sin6.sin6_port = htons(port);
-    }
-    else
-    {
-        free(result);
-        result = NULL;
-    }
-    return result;
-}
 
 static bool sendUDP(NetworkSocket * networkSocket, NetworkAddress * destAddress, const uint8_t * buffer, int bufferLength)
 {
@@ -468,45 +444,6 @@ NetworkAddress * NetworkAddress_New(const char * uri, int uriLength)
     return result;
 }
 
-static int comparePorts(in_port_t x, in_port_t y)
-{
-    int result;
-    if (x == y)
-        result = 0;
-    else if  (x > y)
-        result = 1;
-    else
-        result = -1;
-    return result;
-}
-
-int NetworkAddress_Compare(NetworkAddress * address1, NetworkAddress * address2)
-{
-    int result = -1;
-
-    // Compare address and port (ignore uri)
-    if (address1 && address2 && address1->Address.Sa.sa_family == address2->Address.Sa.sa_family)
-    {
-        if (address1->Address.Sa.sa_family == AF_INET)
-        {
-            result = memcmp(&address1->Address.Sin.sin_addr.s_addr, &address2->Address.Sin.sin_addr.s_addr, sizeof(address2->Address.Sin.sin_addr.s_addr));
-            if (result == 0)
-            {
-                result = comparePorts(address1->Address.Sin.sin_port, address2->Address.Sin.sin_port);
-            }
-        }
-        else if (address1->Address.Sa.sa_family == AF_INET6)
-        {
-            result = memcmp(&address1->Address.Sin6.sin6_addr, &address2->Address.Sin6.sin6_addr, sizeof(address2->Address.Sin6.sin6_addr));
-            if (result == 0)
-            {
-                result = comparePorts(address1->Address.Sin6.sin6_port, address2->Address.Sin6.sin6_port);
-            }
-        }
-    }
-    return result;
-}
-
 void NetworkAddress_SetAddressType(NetworkAddress * address, AddressType * addressType)
 {
     if (address && addressType)
@@ -554,15 +491,6 @@ void NetworkAddress_Free(NetworkAddress ** address)
     }
 }
 
-bool NetworkAddress_IsSecure(const NetworkAddress * address)
-{
-    bool result = false;
-    if (address)
-    {
-        result = address->Secure;
-    }
-    return result;
-}
 
 NetworkSocket * NetworkSocket_New(const char * ipAddress, NetworkSocketType socketType, uint16_t port)
 {
@@ -580,28 +508,6 @@ NetworkSocket * NetworkSocket_New(const char * ipAddress, NetworkSocketType sock
             if (!result->BindAddress)
                 NetworkSocket_Free(&result);
         }
-    }
-    return result;
-}
-
-NetworkSocketError NetworkSocket_GetError(NetworkSocket * networkSocket)
-{
-    NetworkSocketError result = NetworkSocketError_InvalidSocket;
-    if (networkSocket)
-    {
-        result = networkSocket->LastError;
-    }
-    return result;
-}
-
-int NetworkSocket_GetFileDescriptor(NetworkSocket * networkSocket)
-{
-    int result = -1;
-    if (networkSocket)
-    {
-        result = networkSocket->Socket;
-        if (result == SOCKET_ERROR)
-            result = networkSocket->SocketIPv6;
     }
     return result;
 }
@@ -841,19 +747,4 @@ bool NetworkSocket_Send(NetworkSocket * networkSocket, NetworkAddress * destAddr
         }
     }
     return result;
-}
-
-void NetworkSocket_Free(NetworkSocket ** networkSocket)
-{
-    if (!networkSocket || !*networkSocket)
-        return;
-
-    if ((*networkSocket)->Socket != SOCKET_ERROR)
-        close((*networkSocket)->Socket);
-    if ((*networkSocket)->SocketIPv6 != SOCKET_ERROR)
-        close((*networkSocket)->SocketIPv6);
-    if ((*networkSocket)->BindAddress)
-        NetworkAddress_Free(&(*networkSocket)->BindAddress);
-    free(*networkSocket);
-    *networkSocket = NULL;
 }
